@@ -8,9 +8,16 @@ from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from src.config.settings import settings
-from src.database.base import Base
 
-# from src.database.models import users, movies, favorites, search_history  # noqa
+from src.database.base import Base
+from src.database.models.users import (
+    UserGroupModel,
+    UserModel,
+    UserProfileModel,
+    ActivationTokenModel,
+    PasswordResetTokenModel,
+    RefreshTokenModel,
+)  # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
