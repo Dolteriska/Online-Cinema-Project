@@ -28,9 +28,9 @@ from src.security.passwords import verify_password, hash_password
 from src.security.utils import generate_secure_token
 
 class UserGroupEnum(str, enum.Enum):
-    USER = "user"
-    MODERATOR = "moderator"
-    ADMIN = "admin"
+    USER = "USER"
+    MODERATOR = "MODERATOR"
+    ADMIN = "ADMIN"
 
 class GenderEnum(str, enum.Enum):
     MAN = "man"
