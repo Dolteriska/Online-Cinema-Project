@@ -23,6 +23,14 @@ class BaseEmailPasswordSchema(BaseModel):
         return validate_password_strength(value)
 
 
+class MessageResponseSchema(BaseModel):
+    message: str
+
+
+class UserActivationRequestSchema(BaseModel):
+    email: EmailStr
+    token: str
+
 
 class UserRegistrationRequestSchema(BaseEmailPasswordSchema):
     pass
