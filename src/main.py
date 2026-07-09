@@ -1,7 +1,6 @@
 from fastapi import FastAPI
-
 from src.routes import auth_router
-
+from src.celery_app import celery_app # noqa
 app = FastAPI(
     title="Online Cinema Project",
     description="Description of project"

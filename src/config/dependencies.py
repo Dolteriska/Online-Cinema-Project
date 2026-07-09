@@ -1,19 +1,24 @@
-from src.config.settings import Settings
+from fastapi import Depends, HTTPException, status, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from src.config.settings import settings
+from src.database.session import get_db
+from src.exceptions.security import BaseSecurityError
+from src.database.models.users import UserModel
 from src.security.interfaces import JWTAuthManagerInterface
 from src.security.token_manager import JWTAuthManager
 
 
-def get_jwt_auth_manager(settings: Settings) -> JWTAuthManagerInterface:
+def get_jwt_auth_manager() -> JWTAuthManagerInterface:
     """
     Create and return a JWT authentication manager instance.
 
     This function uses the provided application settings to instantiate a JWTAuthManager, which implements
     the JWTAuthManagerInterface. The manager is configured with secret keys for access and refresh tokens
     as well as the JWT signing algorithm specified in the settings.
-
-    Args:
-        settings (BaseAppSettings, optional): The application settings instance.
-        Defaults to the output of get_settings().
 
     Returns:
         JWTAuthManagerInterface: An instance of JWTAuthManager configured with
@@ -24,3 +29,55 @@ def get_jwt_auth_manager(settings: Settings) -> JWTAuthManagerInterface:
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
         algorithm=settings.JWT_SIGNING_ALGORITHM
     )
+
+
+bearer_scheme = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+) -> UserModel:
+    token = credentials.credentials
+
+    try:
+        payload = jwt_manager.decode_access_token(token)
+
+    except BaseSecurityError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = payload.get("user_id")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials.",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    stmt = (
+        select(UserModel)
+        .options(joinedload(UserModel.group))
+        .where(UserModel.id == user_id)
+    )
+
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is not active.",
+        )
+
+    return user
