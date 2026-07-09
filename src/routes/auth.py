@@ -14,7 +14,7 @@ from sqlalchemy.orm import joinedload
 
 from src.config.settings import settings
 
-from src.config.dependencies import get_jwt_auth_manager
+from src.config.dependencies import get_jwt_auth_manager, get_current_user
 from src.database.models.users import (UserModel,
                                        UserGroupModel,
                                        UserGroupEnum,
@@ -34,7 +34,8 @@ from src.schemas.users import (UserRegistrationResponseSchema,
                                UserLoginResponseSchema,
                                PasswordResetRequestSchema,
                                LogoutRequestSchema,
-                               ResendActivationRequestSchema, PasswordResetConfirmRequestSchema)
+                               ResendActivationRequestSchema, PasswordResetConfirmRequestSchema,
+                               ChangePasswordRequestSchema)
 from src.security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()
@@ -392,3 +393,28 @@ async def password_reset_confirm(user_data: PasswordResetConfirmRequestSchema,
         ) from e
 
     return MessageResponseSchema(message="Password has been reset successfully")
+
+
+@router.post("/change-password/", response_model=MessageResponseSchema)
+async def change_password(
+        password_data: ChangePasswordRequestSchema,
+        current_user: UserModel = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+):
+
+    if not current_user.verify_password(password_data.old_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Given password is wrong.")
+
+    new_password = password_data.new_password
+    try:
+        current_user.password = new_password
+        await db.commit()
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Something went wrong. Try again later")
+
+    return MessageResponseSchema(message="Password changed successfully")
+
+

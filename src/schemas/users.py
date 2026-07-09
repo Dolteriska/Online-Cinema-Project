@@ -79,3 +79,12 @@ class LogoutRequestSchema(BaseModel):
 
 class ResendActivationRequestSchema(BaseModel):
     email: EmailStr
+
+class ChangePasswordRequestSchema(BaseModel):
+    old_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value):
+        return validate_password_strength(value)
