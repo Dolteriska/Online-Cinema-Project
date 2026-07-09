@@ -1,17 +1,18 @@
+from src.tasks.tasks import send_activation_email
+
 from datetime import datetime, timezone
 
-from celery.bin.result import result
 from fastapi import Query
 from typing import cast
 
 from fastapi import APIRouter, Depends, status, HTTPException
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from src.config.settings import settings
-from src.tasks.tasks import send_activation_email
+
 from src.config.dependencies import get_jwt_auth_manager
 from src.database.models.users import (UserModel,
                                        UserGroupModel,
@@ -26,7 +27,10 @@ from src.schemas.users import (UserRegistrationResponseSchema,
                                MessageResponseSchema,
                                UserActivationRequestSchema,
                                TokenRefreshResponseSchema,
-                               TokenRefreshRequestSchema)
+                               TokenRefreshRequestSchema,
+                               UserLoginRequestSchema,
+                               UserLoginResponseSchema,
+                               PasswordResetRequestSchema, LogoutRequest)
 from src.security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()
@@ -192,3 +196,75 @@ async def refresh_access_token(
     new_access_token = jwt_manager.create_access_token({"user_id": user.id})
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
+
+
+@router.post("/login/", response_model=UserLoginResponseSchema)
+async def login_user(
+    login_data: UserLoginRequestSchema,
+    db: AsyncSession = Depends(get_db),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+):
+    stmt = select(UserModel).filter_by(email=login_data.email)
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+
+    if not user or not user.verify_password(login_data.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password."
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is not activated."
+        )
+
+    jwt_refresh_token = jwt_manager.create_refresh_token({"user_id": user.id})
+    jwt_access_token = jwt_manager.create_access_token({"user_id": user.id})
+
+    try:
+        refresh_token = RefreshTokenModel.create(
+            user_id=user.id,
+            days_valid=settings.REFRESH_TOKEN_EXPIRE_DAYS,
+            token=jwt_refresh_token
+        )
+        db.add(refresh_token)
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing the request"
+        )
+
+    return UserLoginResponseSchema(
+        access_token=jwt_access_token,
+        refresh_token=jwt_refresh_token
+    )
+
+
+@router.post("/logout/", status_code=status.HTTP_200_OK)
+async def logout(body: LogoutRequest,
+                 db: AsyncSession = Depends(get_db)
+                 ):
+    stmt = select(RefreshTokenModel).where(RefreshTokenModel.token == body.refresh_token)
+    result = await db.execute(stmt)
+    db_token = result.scalars().first()
+    if not db_token:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Refresh token not found or already invalidated.")
+
+    try:
+        await db.delete(db_token)
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="An error occurred while processing the request")
+
+    return MessageResponseSchema(message="You have been successfully logged out!")
+
+
+
+
