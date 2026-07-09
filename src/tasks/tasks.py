@@ -17,6 +17,38 @@ def debug_task(message: str):
     print(f"Celery task executed with message: {message}")
     return f"Done: {message}"
 
+async def _async_send_password_reset_email(email: str, password_reset_url: str):
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Password reset - Online Cinema"
+    msg["From"] = settings.SMTP_USER
+    msg["To"] = email
+    html = f"""
+    <html>
+        <body>
+            <p>Here is your password reset link below:</p>
+            <a href="{password_reset_url}">Reset Password</a>
+        </body>
+    </html>
+    """
+    msg.attach(MIMEText(html, "html"))
+
+    try:
+        await aiosmtplib.send(
+            msg,
+            hostname=settings.SMTP_HOST,
+            port=settings.SMTP_PORT,
+            username=settings.SMTP_USER,
+            password=settings.SMTP_PASSWORD,
+            start_tls=False,
+        )
+        return f"Email sent successfully to {email}"
+    except Exception as e:
+        return f"Failed to send email to {email}. Error: {str(e)}"
+
+@shared_task(name="send_password_reset_email")
+def send_password_reset_email(email: str, password_reset_url: str):
+    return asyncio.run(_async_send_password_reset_email(email, password_reset_url))
+
 
 async def _async_send_activation_email(email: str, activation_url: str):
     msg = MIMEMultipart("alternative")
