@@ -33,6 +33,9 @@ class Settings(BaseSettings):
 
     BASE_URL: str = "http://127.0.0.1:8000"
 
+    #Login
+    LOGIN_TIME_DAYS: int = 7
+
 
     @property
     def REDIS_URL(self) -> str:
