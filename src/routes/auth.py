@@ -125,6 +125,7 @@ async def activate_account(activation_data: UserActivationRequestSchema, db: Asy
         )
 
     user.is_active = True
+    await db.delete(token_record)
     await db.commit()
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -161,6 +162,7 @@ async def activate_account_via_link(
         )
 
     user.is_active = True
+    await db.delete(token_record)
     await db.commit()
 
     return MessageResponseSchema(message="User account activated successfully.")
