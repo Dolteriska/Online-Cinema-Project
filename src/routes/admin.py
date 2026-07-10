@@ -101,10 +101,10 @@ async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db),
     )
 
 
-@router.patch("/user/{user_id}/activate/", response_model=MessageResponseSchema)
+@router.patch("/users/{user_id}/activate/", response_model=MessageResponseSchema)
 async def force_activate_account(user_id: int, db: AsyncSession = Depends(get_db),
                                  current_admin: UserModel = Depends(require_admin)):
-    stmt = select(UserModel).options(joinedload(UserModel.group)).where(UserModel.id == user_id)
+    stmt = select(UserModel).options(joinedload(UserModel.activation_token)).where(UserModel.id == user_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     if not user:
