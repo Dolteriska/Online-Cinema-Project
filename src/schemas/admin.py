@@ -25,8 +25,10 @@ class AdminUserListResponseSchema(BaseModel):
     next: str | None
     previous: str | None
 
-class UserRequestSchema(BaseModel):
-    id: int
 
 class MessageResponseSchema(BaseModel):
     message: str
+
+
+class AdminUserGroupChangeSchema(BaseModel):
+    group: UserGroupEnum
