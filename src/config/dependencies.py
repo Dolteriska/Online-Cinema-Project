@@ -10,7 +10,7 @@ from src.exceptions.security import BaseSecurityError
 from src.database.models.users import UserModel
 from src.security.interfaces import JWTAuthManagerInterface
 from src.security.token_manager import JWTAuthManager
-
+from src.database.models.users import UserGroupEnum
 
 def get_jwt_auth_manager() -> JWTAuthManagerInterface:
     """
@@ -81,3 +81,26 @@ async def get_current_user(
         )
 
     return user
+
+
+def require_roles(*allowed_roles: UserGroupEnum):
+    async def role_checker(
+        current_user: UserModel = Depends(get_current_user),
+    ) -> UserModel:
+        if current_user.group is None or current_user.group.name not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to perform this action.",
+            )
+
+        return current_user
+
+    return role_checker
+
+
+require_admin = require_roles(UserGroupEnum.ADMIN)
+
+require_moderator = require_roles(
+    UserGroupEnum.MODERATOR,
+    UserGroupEnum.ADMIN,
+)

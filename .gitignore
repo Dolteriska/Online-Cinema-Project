@@ -106,3 +106,8 @@ venv.bak/
 .mypy_cache/
 
 .idea/*
+
+#celery beat local schedule state
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+celerybeat-schedule.dir
