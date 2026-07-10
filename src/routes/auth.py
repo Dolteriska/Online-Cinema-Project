@@ -378,6 +378,8 @@ async def password_reset_confirm(user_data: PasswordResetConfirmRequestSchema,
     user = token_record.user
 
     if not user.is_active:
+        await db.delete(token_record)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User account is not active"
