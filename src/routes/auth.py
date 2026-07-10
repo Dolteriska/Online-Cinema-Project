@@ -125,6 +125,7 @@ async def activate_account(activation_data: UserActivationRequestSchema, db: Asy
         )
 
     user.is_active = True
+    await db.delete(token_record)
     await db.commit()
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -161,6 +162,7 @@ async def activate_account_via_link(
         )
 
     user.is_active = True
+    await db.delete(token_record)
     await db.commit()
 
     return MessageResponseSchema(message="User account activated successfully.")
@@ -187,6 +189,8 @@ async def refresh_access_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token user mismatch")
 
     if refresh_token_record.expires_at < datetime.now(timezone.utc):
+        await db.delete(refresh_token_record)
+        await db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token has expired.")
 
     stmt = select(UserModel).filter_by(id=refresh_token_record.user_id)
@@ -376,6 +380,8 @@ async def password_reset_confirm(user_data: PasswordResetConfirmRequestSchema,
     user = token_record.user
 
     if not user.is_active:
+        await db.delete(token_record)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User account is not active"
