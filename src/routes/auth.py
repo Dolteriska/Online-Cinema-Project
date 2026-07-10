@@ -189,6 +189,8 @@ async def refresh_access_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token user mismatch")
 
     if refresh_token_record.expires_at < datetime.now(timezone.utc):
+        await db.delete(refresh_token_record)
+        await db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token has expired.")
 
     stmt = select(UserModel).filter_by(id=refresh_token_record.user_id)
