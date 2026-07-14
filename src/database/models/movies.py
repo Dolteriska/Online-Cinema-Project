@@ -1,5 +1,5 @@
 import uuid as uuid_pkg
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from decimal import Decimal
 from sqlalchemy import (
     ForeignKey,
@@ -18,8 +18,14 @@ from sqlalchemy.orm import (
     mapped_column,
     relationship,
 )
-
 from src.database.base import Base
+
+if TYPE_CHECKING:
+    from src.database.models.movie_interactions import (MovieComment,
+                                                        MovieReaction,
+                                                        FavoriteMovie,
+                                                        MovieRating,
+                                                        MoviePurchase)
 
 movie_genres = Table(
     "movie_genres",
@@ -143,6 +149,49 @@ class Movie(Base):
         back_populates="movie",
         cascade="all, delete-orphan"
     )
+
+    reacted_by_users: Mapped[List["MovieReaction"]] = relationship(
+        "MovieReaction",
+        back_populates="movie",
+        cascade="all, delete-orphan"
+    )
+
+    comments: Mapped[List["MovieComment"]] = relationship(
+        "MovieComment",
+        back_populates="movie",
+        cascade="all, delete-orphan"
+    )
+
+    ratings: Mapped[List["MovieRating"]] = relationship(
+        "MovieRating",
+        back_populates="movie",
+        cascade="all, delete-orphan"
+    )
+
+    purchases: Mapped[List["MoviePurchase"]] = relationship(
+        "MoviePurchase",
+        back_populates="movie"
+    )
+
+    @property
+    def favorite_count(self) -> int:
+        """Number of users who added this movie to their favorites"""
+        return len(self.favorite_by_users)
+
+    @property
+    def average_rating(self) -> float | None:
+        """Average rating from users"""
+        if not self.ratings:
+            return None
+        return sum(r.rating for r in self.ratings) / len(self.ratings)
+
+    @property
+    def total_likes(self) -> int:
+        """Number of likes"""
+        return sum(1 for r in self.reacted_by_users if r.reaction.value == "LIKE")
+
+
+
 
 
 
