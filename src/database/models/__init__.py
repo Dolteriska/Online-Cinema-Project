@@ -17,4 +17,10 @@ from src.database.models.movies import (
 
 from src.database.models.movie_interactions import (
     FavoriteMovie,
+    MovieReaction,
+    MovieComment,
+    MovieRating,
+    MovieCommentReaction,
+    UserNotification,
+    MoviePurchase,
 )
