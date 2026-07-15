@@ -6,10 +6,10 @@ from sqlalchemy.orm import joinedload
 
 from src.config.dependencies import require_moderator, require_admin
 from src.database.models.users import UserModel, UserGroupModel
-from src.schemas.admin import (AdminUserResponseSchema,
-                               AdminUserListResponseSchema,
-                               AdminUserGroupChangeSchema,
-                               MessageResponseSchema)
+from src.schemas.admin_user_schema import (AdminUserResponseSchema,
+                                           AdminUserListResponseSchema,
+                                           AdminUserGroupChangeSchema,
+                                           MessageResponseSchema)
 from src.database.session import get_db
 router = APIRouter()
 

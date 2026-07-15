@@ -1,6 +1,11 @@
 import enum
-from datetime import datetime, date, timedelta, timezone
-from typing import List, Optional
+from datetime import (datetime,
+                      date,
+                      timedelta,
+                      timezone)
+from typing import (List,
+                    Optional,
+                    TYPE_CHECKING)
 
 from sqlalchemy import (
     ForeignKey,
@@ -26,6 +31,15 @@ from src.database.base import Base
 
 from src.security.passwords import verify_password, hash_password
 from src.security.utils import generate_secure_token
+
+if TYPE_CHECKING:
+    from src.database.models.movie_interactions import (FavoriteMovie,
+                                                        MovieReaction,
+                                                        MovieComment,
+                                                        MovieRating,
+                                                        MovieCommentReaction,
+                                                        UserNotification,
+                                                        MoviePurchase)
 
 class UserGroupEnum(str, enum.Enum):
     USER = "USER"
@@ -86,6 +100,48 @@ class UserModel(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+
+    favorite_movies: Mapped[List["FavoriteMovie"]] = relationship(
+        "FavoriteMovie",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    reaction_on_movies: Mapped[List["MovieReaction"]] = relationship(
+        "MovieReaction",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    movie_comments: Mapped[List["MovieComment"]] = relationship(
+        "MovieComment",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    movie_ratings: Mapped[List["MovieRating"]] = relationship(
+        "MovieRating",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    comment_reactions: Mapped[List["MovieCommentReaction"]] = relationship(
+        "MovieCommentReaction",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    notifications: Mapped[List["UserNotification"]] = relationship(
+        "UserNotification",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    purchases: Mapped[List["MoviePurchase"]] = relationship(
+        "MoviePurchase",
+        back_populates="user"
+    )
+
 
     def __repr__(self):
         return f"<UserModel(id={self.id}, email={self.email}, is_active={self.is_active})>"

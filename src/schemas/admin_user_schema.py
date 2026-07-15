@@ -17,6 +17,7 @@ class AdminUserResponseSchema(BaseModel):
         "from_attributes": True
     }
 
+
 class AdminUserListResponseSchema(BaseModel):
     items: list[AdminUserResponseSchema]
     total: int
