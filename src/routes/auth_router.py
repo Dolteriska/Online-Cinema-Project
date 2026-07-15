@@ -24,18 +24,18 @@ from src.database.models.users import (UserModel,
 from src.database.session import get_db
 from src.exceptions.security import BaseSecurityError
 
-from src.schemas.users import (UserRegistrationResponseSchema,
-                               UserRegistrationRequestSchema,
-                               MessageResponseSchema,
-                               UserActivationRequestSchema,
-                               TokenRefreshResponseSchema,
-                               TokenRefreshRequestSchema,
-                               UserLoginRequestSchema,
-                               UserLoginResponseSchema,
-                               PasswordResetRequestSchema,
-                               LogoutRequestSchema,
-                               ResendActivationRequestSchema, PasswordResetConfirmRequestSchema,
-                               ChangePasswordRequestSchema)
+from src.schemas.users_schema import (UserRegistrationResponseSchema,
+                                      UserRegistrationRequestSchema,
+                                      MessageResponseSchema,
+                                      UserActivationRequestSchema,
+                                      TokenRefreshResponseSchema,
+                                      TokenRefreshRequestSchema,
+                                      UserLoginRequestSchema,
+                                      UserLoginResponseSchema,
+                                      PasswordResetRequestSchema,
+                                      LogoutRequestSchema,
+                                      ResendActivationRequestSchema, PasswordResetConfirmRequestSchema,
+                                      ChangePasswordRequestSchema)
 from src.security.interfaces import JWTAuthManagerInterface
 
 router = APIRouter()
