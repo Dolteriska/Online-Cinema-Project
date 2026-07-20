@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, status, HTTPException, Query, Request, Path
 from sqlalchemy import select, func, delete
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.config.dependencies import get_current_user
-from src.database.models.movie_interactions import FavoriteMovie
+from src.database.models.movie_interactions import (FavoriteMovie,
+                                                    ReactionEnum,
+                                                    MovieReaction,
+                                                    MovieRating)
 from src.database.models.users import UserModel
 from src.database.models.movies import (Movie,
                                         Certification,
@@ -159,6 +163,125 @@ async def delete_movie_from_favorites(
 
 
 #LIKE AND DISLIKE
+
+
+@router.post("/movies/{movie_id}/{reaction}/", response_model=MessageResponseSchema)
+async def add_movie_reaction(
+        movie_id: int,
+        reaction: ReactionEnum,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(get_current_user)
+):
+    movie = await db.scalar(select(Movie).where(Movie.id == movie_id))
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with given ID was not found"
+        )
+
+    try:
+
+        existing_reaction_stmt = select(MovieReaction).where(
+            MovieReaction.user_id == current_user.id,
+            MovieReaction.movie_id == movie_id
+        )
+        result = await db.execute(existing_reaction_stmt)
+        existing_reaction = result.scalar_one_or_none()
+
+        if existing_reaction:
+
+            if existing_reaction.reaction == reaction:
+                await db.delete(existing_reaction)
+                await db.commit()
+                return MessageResponseSchema(
+                    message=f"Reaction {reaction.value} removed from movie {movie.name}"
+                )
+
+
+            existing_reaction.reaction = reaction
+            msg = f"Reaction changed to {reaction.value} for movie {movie.name}"
+
+        else:
+
+            new_reaction = MovieReaction(
+                user_id=current_user.id,
+                movie_id=movie_id,
+                reaction=reaction
+            )
+            db.add(new_reaction)
+            msg = f"Reaction {reaction.value} successfully added to movie {movie.name}"
+
+        await db.commit()
+        return MessageResponseSchema(message=msg)
+
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong"
+        ) from e
+
+
+
+@router.post("/movies/{movie_id}/rate_movie/{user_rating}/", response_model=MessageResponseSchema)
+async def rate_movie(
+        movie_id: int,
+        user_rating: int = Path(..., ge=1, le=10, description="Rating of movie from 1 to 10"),
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(get_current_user)
+):
+    stmt = select(Movie).where(Movie.id == movie_id)
+    result = await db.execute(stmt)
+    movie = result.scalar_one_or_none()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with given ID was not found"
+        )
+
+    try:
+        existing_rating_stmt = select(MovieRating).where(
+            MovieRating.movie_id == movie.id,
+            MovieRating.user_id == current_user.id
+        )
+        result = await db.execute(existing_rating_stmt)
+        existing_rating = result.scalar_one_or_none()
+
+        if existing_rating:
+
+            if existing_rating.rating == user_rating:
+                await db.delete(existing_rating)
+                await db.commit()
+                return MessageResponseSchema(
+                    message=f"Rating {user_rating} removed from movie {movie.name}")
+
+            existing_rating.rating = user_rating
+            msg = f"Rating changed to {user_rating} for movie {movie.name}"
+
+        else:
+
+            new_rating = MovieRating(
+                movie_id=movie.id,
+                user_id=current_user.id,
+                rating=user_rating
+            )
+            db.add(new_rating)
+            msg = f"Rating {user_rating} successfully added to movie {movie.name}"
+
+        await db.commit()
+        return MessageResponseSchema(message=msg)
+
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong"
+        ) from e
+
+
+
+
 
 
 
