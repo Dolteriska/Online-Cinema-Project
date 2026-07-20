@@ -186,9 +186,19 @@ class Movie(Base):
         return sum(r.rating for r in self.ratings) / len(self.ratings)
 
     @property
+    def total_times_rated(self) -> int:
+        """Total number of ratings submitted by users"""
+        return len(self.ratings)
+
+    @property
     def total_likes(self) -> int:
         """Number of likes"""
         return sum(1 for r in self.reacted_by_users if r.reaction.value == "LIKE")
+
+    @property
+    def total_dislikes(self) -> int:
+        """Number of dislikes"""
+        return sum(1 for r in self.reacted_by_users if r.reaction.value == "DISLIKE")
 
 
 
