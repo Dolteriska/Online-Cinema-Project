@@ -108,8 +108,10 @@ class MovieDetailResponseSchema(BaseModel):
     stars: list[StarResponse]
     directors: list[DirectorResponse]
     favorite_count: int
+    total_times_rated: int
     average_rating: float | None = None
     total_likes: int
+    total_dislikes: int
 
     model_config = {"from_attributes": True}
 
