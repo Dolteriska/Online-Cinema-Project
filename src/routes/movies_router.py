@@ -184,7 +184,7 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_db)):
             selectinload(Movie.directors),
             selectinload(Movie.favorite_by_users),
             selectinload(Movie.ratings),
-            selectinload(Movie.reacted_by_users)
+            selectinload(Movie.reacted_by_users),
         )
     )
     result = await db.execute(stmt)
