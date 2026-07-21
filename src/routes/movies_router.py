@@ -143,7 +143,7 @@ async def get_movie_list(request: Request,
         )
 
         if genre_ids or star_ids or director_ids:
-            stmt = stmt.group_by(purchases_sub.c.p_count, favorites_sub.c.f_count)
+            stmt = stmt.group_by(Movie.id, purchases_sub.c.p_count, favorites_sub.c.f_count)
 
         stmt = stmt.order_by(popularity_score.desc())
 
