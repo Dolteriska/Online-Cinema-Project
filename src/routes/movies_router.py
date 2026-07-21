@@ -51,6 +51,7 @@ async def get_movie_list(request: Request,
                          max_price: Optional[Decimal] = Query(None),
                          certification_id: Optional[int] = Query(None),
                          title: Optional[str] = Query(None),
+                         description: Optional[str] = Query(None),
                          genre_ids: Optional[list[int]] = Query(None),
                          star_ids: Optional[list[int]] = Query(None),
                          director_ids: Optional[list[int]] = Query(None),
@@ -63,6 +64,9 @@ async def get_movie_list(request: Request,
     if title:
         title = title.strip()
         base_stmt = base_stmt.filter(Movie.name.ilike(f"%{title}%"))
+    if description:
+        description = description.strip()
+        base_stmt = base_stmt.filter(Movie.description.ilike(f"%{description}%"))
     if min_year:
         base_stmt = base_stmt.filter(Movie.year >= min_year)
     if max_year:
