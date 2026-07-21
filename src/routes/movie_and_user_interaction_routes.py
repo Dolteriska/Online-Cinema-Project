@@ -4,7 +4,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
+from typing import Optional
+from decimal import Decimal
 from src.config.dependencies import get_current_user
 from src.database.models.movie_interactions import (FavoriteMovie,
                                                     ReactionEnum,
@@ -12,16 +13,14 @@ from src.database.models.movie_interactions import (FavoriteMovie,
                                                     MovieRating)
 from src.database.models.users import UserModel
 from src.database.models.movies import (Movie,
-                                        Certification,
-                                        Genre,
-                                        Star,
-                                        Director,
-                                        movie_genres)
+                                        movie_genres,
+                                        movie_directors,
+                                        movie_stars)
+from src.database.models.movie_interactions import MoviePurchase
 from src.database.session import get_db
 from src.schemas.movie_and_user_interaction_schema import FavoriteMovieListResponseSchema
 from src.schemas.users_schema import MessageResponseSchema
-from src.schemas.movies_schema import MovieResponseSchema
-
+from src.schemas.movies_schema import MovieResponseSchema, MovieSortBy
 router = APIRouter()
 
 
@@ -31,19 +30,24 @@ router = APIRouter()
 async def get_favorite_movies(
     request: Request,
     db: AsyncSession = Depends(get_db),
+    min_year: Optional[int] = Query(None),
+    max_year: Optional[int] = Query(None),
+    min_imdb: Optional[float] = Query(None),
+    max_imdb: Optional[float] = Query(None),
+    min_price: Optional[Decimal] = Query(None),
+    max_price: Optional[Decimal] = Query(None),
+    certification_id: Optional[int] = Query(None),
+    title: Optional[str] = Query(None),
+    description: Optional[str] = Query(None),
+    genre_ids: Optional[list[int]] = Query(None),
+    star_ids: Optional[list[int]] = Query(None),
+    director_ids: Optional[list[int]] = Query(None),
+    sort: Optional[MovieSortBy] = Query(None),
     current_user: UserModel = Depends(get_current_user),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
-    total_stmt = (
-        select(func.count())
-        .select_from(FavoriteMovie)
-        .where(FavoriteMovie.user_id == current_user.id)
-    )
-    total_result = await db.execute(total_stmt)
-    total = total_result.scalar_one()
-
-    stmt = (
+    base_stmt = (
         select(Movie)
         .join(FavoriteMovie, FavoriteMovie.movie_id == Movie.id)
         .where(FavoriteMovie.user_id == current_user.id)
@@ -53,10 +57,101 @@ async def get_favorite_movies(
             selectinload(Movie.stars),
             selectinload(Movie.directors),
         )
-        .order_by(FavoriteMovie.created_at.desc())
-        .limit(limit)
-        .offset(offset)
     )
+    if title:
+        title = title.strip()
+        base_stmt = base_stmt.filter(Movie.name.ilike(f"%{title}%"))
+    if description:
+        description = description.strip()
+        base_stmt = base_stmt.filter(Movie.description.ilike(f"%{description}%"))
+    if min_year:
+        base_stmt = base_stmt.filter(Movie.year >= min_year)
+    if max_year:
+        base_stmt = base_stmt.filter(Movie.year <= max_year)
+    if min_imdb:
+        base_stmt = base_stmt.filter(Movie.imdb >= min_imdb)
+    if max_imdb:
+        base_stmt = base_stmt.filter(Movie.imdb <= max_imdb)
+    if min_price:
+        base_stmt = base_stmt.filter(Movie.price >= min_price)
+    if max_price:
+        base_stmt = base_stmt.filter(Movie.price <= max_price)
+    if certification_id:
+        base_stmt = base_stmt.filter(Movie.certification_id == certification_id)
+
+    if genre_ids:
+        base_stmt = (
+            base_stmt.join(movie_genres)
+            .filter(movie_genres.c.genre_id.in_(genre_ids))
+            .group_by(Movie.id)
+            .having(func.count(movie_genres.c.genre_id) == len(genre_ids))
+        )
+    if star_ids:
+        base_stmt = (
+            base_stmt.join(movie_stars)
+            .filter(movie_stars.c.star_id.in_(star_ids))
+            .group_by(Movie.id)
+            .having(func.count(movie_stars.c.star_id) == len(star_ids))
+        )
+    if director_ids:
+        base_stmt = (
+            base_stmt.join(movie_directors)
+            .filter(movie_directors.c.director_id.in_(director_ids))
+            .group_by(Movie.id)
+            .having(func.count(movie_directors.c.director_id) == len(director_ids))
+        )
+    total_stmt = select(func.count()).select_from(base_stmt.subquery())
+    total_result = await db.execute(total_stmt)
+    total = total_result.scalar_one_or_none() or 0
+    if total == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Movies with such query parameters were not found or you didn't favorite any movie yet")
+    stmt = base_stmt.options(
+        selectinload(Movie.certification),
+        selectinload(Movie.genres),
+        selectinload(Movie.stars),
+        selectinload(Movie.directors),
+    )
+
+    if sort == MovieSortBy.popularity:
+        purchases_sub = (
+            select(MoviePurchase.movie_id, func.count(MoviePurchase.id).label("p_count"))
+            .group_by(MoviePurchase.movie_id)
+            .subquery()
+        )
+
+        favorites_sub = (
+            select(FavoriteMovie.movie_id, func.count(FavoriteMovie.id).label("f_count"))
+            .group_by(FavoriteMovie.movie_id)
+            .subquery()
+        )
+
+        stmt = (
+            stmt
+            .outerjoin(purchases_sub, Movie.id == purchases_sub.c.movie_id)
+            .outerjoin(favorites_sub, Movie.id == favorites_sub.c.movie_id)
+        )
+        popularity_score = (
+                (func.coalesce(purchases_sub.c.p_count, 0) * 100) +
+                (func.coalesce(favorites_sub.c.f_count, 0) * 30) +
+                (Movie.votes * 0.001)
+        )
+
+        if genre_ids or star_ids or director_ids:
+            stmt = stmt.group_by(Movie.id, purchases_sub.c.p_count, favorites_sub.c.f_count)
+
+        stmt = stmt.order_by(popularity_score.desc())
+
+    elif sort == MovieSortBy.price_asc:
+        stmt = stmt.order_by(Movie.price.asc())
+    elif sort == MovieSortBy.price_desc:
+        stmt = stmt.order_by(Movie.price.desc())
+    elif sort == MovieSortBy.year_desc:
+        stmt = stmt.order_by(Movie.year.desc())
+    else:
+        stmt = stmt.order_by(Movie.id.desc())
+
+    stmt = stmt.limit(limit).offset(offset)
 
     result = await db.execute(stmt)
     movies = result.scalars().all()
@@ -64,23 +159,9 @@ async def get_favorite_movies(
     next_offset = offset + limit
     previous_offset = max(offset - limit, 0)
 
-    next_url = None
-    if next_offset < total:
-        next_url = str(
-            request.url.include_query_params(
-                limit=limit,
-                offset=next_offset,
-            )
-        )
+    next_url = str(request.url.include_query_params(limit=limit, offset=next_offset)) if next_offset < total else None
+    previous_url = str(request.url.include_query_params(limit=limit, offset=previous_offset)) if offset > 0 else None
 
-    previous_url = None
-    if offset > 0:
-        previous_url = str(
-            request.url.include_query_params(
-                limit=limit,
-                offset=previous_offset,
-            )
-        )
 
     return FavoriteMovieListResponseSchema(
         items=[MovieResponseSchema.model_validate(movie) for movie in movies],
