@@ -88,6 +88,7 @@ class MovieResponseSchema(BaseModel):
     year: int
     imdb: float
     price: Decimal
+    description: str
     genres: list[GenreResponse]
 
     model_config = {"from_attributes": True}
