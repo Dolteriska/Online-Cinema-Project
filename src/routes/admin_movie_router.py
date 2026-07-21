@@ -127,6 +127,7 @@ async def create_certification(certification_data: CertificationCreate, db: Asyn
 
 @router.post("/movies/create/", response_model=MessageResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_movie(movie_data: MovieCreateSchema, db: AsyncSession = Depends(get_db),
+                       current_moderator: UserModel = Depends(require_moderator) # noqa
                        ):
     data = movie_data.model_dump()
 
