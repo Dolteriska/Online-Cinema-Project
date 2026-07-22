@@ -1,13 +1,13 @@
 from fastapi import Depends, HTTPException, status, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import select
+from sqlalchemy import select, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from src.config.settings import settings
 from src.database.session import get_db
 from src.exceptions.security import BaseSecurityError
-from src.database.models.users import UserModel
+from src.database.models.users import UserModel, UserProfileModel
 from src.security.interfaces import JWTAuthManagerInterface
 from src.security.token_manager import JWTAuthManager
 from src.database.models.users import UserGroupEnum
@@ -104,3 +104,23 @@ require_moderator = require_roles(
     UserGroupEnum.MODERATOR,
     UserGroupEnum.ADMIN,
 )
+
+async def require_profile(
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserModel:
+    """
+    Проверяет существование профиля у пользователя перед выполнением действия.
+    Не делает тяжелый JOIN/SELECT всего профиля, а выполняет легкий EXISTS запрос.
+    """
+    stmt = select(exists().where(UserProfileModel.user_id == current_user.id))
+    has_profile = await db.scalar(stmt)
+
+    if not has_profile:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can't comment without having a profile. Create a profile first.",
+        )
+
+    return current_user
+
