@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
 from decimal import Decimal
@@ -41,14 +41,35 @@ class MovieCreateSchema(BaseModel):
 #PATCH SCHEMAS
 
 
+class GenreUpdateSchema(BaseModel):
+    name: Optional[str] = None
+
+
+class StarUpdateSchema(BaseModel):
+    name: Optional[str] = None
+
+
+class DirectorUpdateSchema(BaseModel):
+    name: Optional[str] = None
+
+
+class CertificationUpdateSchema(BaseModel):
+    name: Optional[str] = None
+
+
 class MovieUpdateSchema(BaseModel):
-    name: str | None = None
-    year: int | None = None
-    time: int | None = None
-    imdb: float | None = None
-    description: str | None = None
-    price: Decimal | None = None
-    certification_id: int | None = None
-    genre_ids: list[int] | None = None
-    star_ids: list[int] | None = None
-    director_ids: list[int] | None = None
+    name: Optional[str] = None
+    year: Optional[int] = None
+    time: Optional[int] = None
+    imdb: Optional[float] = None
+    votes: Optional[int] = None
+    meta_score: Optional[float] = None
+    gross: Optional[float] = None
+    description: Optional[str] = None
+    price: Optional[Decimal] = None
+    certification_id: Optional[int] = None
+
+
+    genre_ids: Optional[List[int]] = None
+    star_ids: Optional[List[int]] = None
+    director_ids: Optional[List[int]] = None
