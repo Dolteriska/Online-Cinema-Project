@@ -55,3 +55,10 @@ class UserProfileUpdateSchema(UserProfileBase):
 class UserDeleteRequestSchema(BaseModel):
     password: str
     answer: DeleteProfileQuestionEnum
+
+
+class UserProfileShortResponse(BaseModel):
+    id: int
+    first_name: str
+    last_name: str | None
+    avatar: str | None
