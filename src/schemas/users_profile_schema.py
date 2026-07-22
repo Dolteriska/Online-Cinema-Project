@@ -4,6 +4,12 @@ from pydantic import BaseModel, Field, field_validator
 from src.database.validators.users import validate_email, validate_password_strength
 from datetime import date, datetime
 from src.database.models.users import GenderEnum
+from enum import Enum
+
+
+class DeleteProfileQuestionEnum(str, Enum):
+    yes = "YES"
+    no = "NO"
 
 
 
@@ -37,9 +43,15 @@ class UserProfileResponse(BaseModel):
     gender: GenderEnum | None
     date_of_birth: date
     avatar: str | None = None
+    info: str
 
     model_config = {"from_attributes": True}
 
 
 class UserProfileUpdateSchema(UserProfileBase):
     pass
+
+
+class UserDeleteRequestSchema(BaseModel):
+    password: str
+    answer: DeleteProfileQuestionEnum
