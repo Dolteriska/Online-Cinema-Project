@@ -7,20 +7,81 @@ from sqlalchemy.orm import selectinload, joinedload
 from typing import Optional, List
 from decimal import Decimal
 from src.config.dependencies import get_current_user, require_profile
-from src.database.models import MovieComment
+from src.database.models import MovieComment, MovieCommentReaction
 from src.database.models.movie_interactions import (FavoriteMovie,
                                                     ReactionEnum,
                                                     MovieReaction,
                                                     MovieRating)
-from src.database.models.users import UserModel, UserProfileModel
+from src.database.models.users import UserModel, UserProfileModel, UserGroupEnum
 from src.database.models.movies import Movie
 from src.database.session import get_db
+from src.schemas.admin_user_schema import MessageResponseSchema
 from src.schemas.movie_comments_schema import (CommentReadSchema,
                                                CommentCreateSchema)
 from src.schemas.users_profile_schema import UserProfileShortResponse
 
 router = APIRouter()
 
+async def get_comment_response_dto(
+    comment_id: int,
+    db: AsyncSession,
+    current_user_id: Optional[int] = None
+) -> CommentReadSchema:
+    stmt = (
+        select(MovieComment)
+        .options(joinedload(MovieComment.user).joinedload(UserModel.profile))
+        .where(MovieComment.id == comment_id)
+    )
+    result = await db.execute(stmt)
+    comment = result.scalar_one_or_none()
+
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found"
+        )
+
+    reactions_stmt = (
+        select(
+            MovieCommentReaction.reaction,
+            func.count(MovieCommentReaction.id)
+        )
+        .where(MovieCommentReaction.comment_id == comment_id)
+        .group_by(MovieCommentReaction.reaction)
+    )
+    reactions_res = await db.execute(reactions_stmt)
+    reactions_count = {react: count for react, count in reactions_res.all()}
+
+    likes_count = reactions_count.get(ReactionEnum.LIKE, 0)
+    dislikes_count = reactions_count.get(ReactionEnum.DISLIKE, 0)
+
+    my_reaction = None
+    if current_user_id:
+        my_reaction_stmt = select(MovieCommentReaction.reaction).where(
+            MovieCommentReaction.comment_id == comment_id,
+            MovieCommentReaction.user_id == current_user_id
+        )
+        my_reaction_res = await db.execute(my_reaction_stmt)
+        my_reaction = my_reaction_res.scalar_one_or_none()
+
+    comment_dict = {
+        "id": comment.id,
+        "text": comment.text,
+        "created_at": comment.created_at,
+        "is_deleted": comment.is_deleted,
+        "user": UserProfileShortResponse(
+            id=comment.user_id,
+            first_name=comment.user.profile.first_name,
+            last_name=comment.user.profile.last_name,
+            avatar=comment.user.profile.avatar
+        ),
+        "likes_count": likes_count,
+        "dislikes_count": dislikes_count,
+        "my_reaction": my_reaction,
+        "replies": []
+    }
+
+    return CommentReadSchema.model_validate(comment_dict)
 
 @router.get("/movies/{movie_id}/comments/", response_model=List[CommentReadSchema])
 async def get_movie_comments_tree(
@@ -49,18 +110,34 @@ async def get_movie_comments_tree(
     root_comments: list[CommentReadSchema] = []
 
     for comment in all_comments:
+        is_deleted = comment.is_deleted
+
+        # Если комментарий удален, подставляем заглушку для юзера, чтобы Pydantic не падал
+        user_data = None
+        if not is_deleted and comment.user and comment.user.profile:
+            user_data = UserProfileShortResponse(
+                id=comment.user_id,
+                first_name=comment.user.profile.first_name,
+                last_name=comment.user.profile.last_name,
+                avatar=comment.user.profile.avatar
+            )
+        elif is_deleted:
+            user_data = UserProfileShortResponse(
+                id=0,
+                first_name="Deleted",
+                last_name=None,
+                avatar=None
+            )
+
         comment_dict = {
             "id": comment.id,
-            "text": comment.text,
+            "text": "[Deleted comment]" if is_deleted else comment.text,
             "created_at": comment.created_at,
-            "is_deleted": comment.is_deleted,
-            "user": UserProfileShortResponse(id=comment.user_id,
-                                             first_name=comment.user.profile.first_name,
-                                             last_name=comment.user.profile.last_name,
-                                             avatar=comment.user.profile.avatar),
-            "likes_count": getattr(comment, "likes_count", 0),
-            "dislikes_count": getattr(comment, "dislikes_count", 0),
-            "my_reaction": getattr(comment, "my_reaction", None),
+            "is_deleted": is_deleted,
+            "user": user_data,
+            "likes_count": 0 if is_deleted else getattr(comment, "likes_count", 0),
+            "dislikes_count": 0 if is_deleted else getattr(comment, "dislikes_count", 0),
+            "my_reaction": None if is_deleted else getattr(comment, "my_reaction", None),
             "replies": []
         }
 
@@ -162,3 +239,97 @@ async def create_comment_reply(
     )
     result = await db.execute(stmt)
     return result.scalar_one()
+
+
+
+@router.post("/comments/{comment_id}/{reaction}/", response_model=CommentReadSchema)
+async def toggle_comment_reaction(
+        comment_id: int,
+        reaction: ReactionEnum,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(require_profile)
+):
+    stmt = select(MovieComment).where(MovieComment.id == comment_id)
+    result = await db.execute(stmt)
+    comment = result.scalar_one_or_none()
+
+    if not comment or comment.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment with given ID was not found or was deleted"
+        )
+
+    existing_reaction_stmt = (
+        select
+        (MovieCommentReaction)
+        .where(MovieCommentReaction.comment_id == comment_id,
+               MovieCommentReaction.user_id == current_user.id)
+    )
+    result = await db.execute(existing_reaction_stmt)
+    existing_reaction = result.scalar_one_or_none()
+
+    if existing_reaction:
+        if existing_reaction.reaction == reaction:
+            await db.delete(existing_reaction)
+        else:
+            existing_reaction.reaction = reaction
+    else:
+        new_reaction = MovieCommentReaction(
+            user_id=current_user.id,
+            comment_id=comment_id,
+            reaction=reaction
+        )
+        db.add(new_reaction)
+
+    try:
+        await db.commit()
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update reaction"
+        ) from e
+
+    return await get_comment_response_dto(comment_id, db, current_user.id)
+
+
+@router.delete("/comments/{comment_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_comment(
+        comment_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(require_profile)
+):
+    stmt = select(MovieComment).where(MovieComment.id == comment_id)
+    result = await db.execute(stmt)
+    comment = result.scalar_one_or_none()
+
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found"
+        )
+
+    is_admin = current_user.group and current_user.group.name == UserGroupEnum.ADMIN
+
+    is_author = comment.user_id == current_user.id
+
+    if not is_author and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to delete this comment"
+        )
+
+    if comment.is_deleted:
+        return MessageResponseSchema(message="Comment has been deleted already")
+
+    comment.is_deleted = True
+    comment.text = "[Deleted comment]"
+
+    try:
+        await db.commit()
+    except SQLAlchemyError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete comment"
+        ) from e
