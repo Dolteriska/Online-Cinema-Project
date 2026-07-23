@@ -1,9 +1,8 @@
+from datetime import timedelta
 from celery import Celery
 from src.config.settings import settings
-from datetime import timedelta
 
 celery_app = Celery("online_cinema")
-
 
 celery_app.conf.update(
     broker_url=settings.REDIS_URL,

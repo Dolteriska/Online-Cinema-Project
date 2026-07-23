@@ -11,7 +11,7 @@ from src.database.models import MovieComment, MovieCommentReaction
 from src.database.models.movie_interactions import (FavoriteMovie,
                                                     ReactionEnum,
                                                     MovieReaction,
-                                                    MovieRating)
+                                                    MovieRating, NotificationEnum)
 from src.database.models.users import UserModel, UserProfileModel, UserGroupEnum
 from src.database.models.movies import Movie
 from src.database.session import get_db
@@ -19,7 +19,7 @@ from src.schemas.admin_user_schema import MessageResponseSchema
 from src.schemas.movie_comments_schema import (CommentReadSchema,
                                                CommentCreateSchema)
 from src.schemas.users_profile_schema import UserProfileShortResponse
-
+from src.tasks.tasks import create_and_send_notification
 router = APIRouter()
 
 async def get_comment_response_dto(
@@ -228,6 +228,15 @@ async def create_comment_reply(
             detail="Something went wrong during reply creation"
         ) from e
 
+    if parent_comment.user_id != current_user.id:
+        create_and_send_notification.delay(
+            user_id=parent_comment.user_id,
+            notification_type=NotificationEnum.COMMENT_REPLY.value,
+            movie_comment_id=new_reply.id,
+            movie_id=parent_comment.movie_id,
+            extra_text=new_reply.text
+        )
+
     stmt = (
         select(MovieComment)
         .options(
@@ -267,11 +276,15 @@ async def toggle_comment_reaction(
     result = await db.execute(existing_reaction_stmt)
     existing_reaction = result.scalar_one_or_none()
 
+    should_notify = False
+
     if existing_reaction:
         if existing_reaction.reaction == reaction:
             await db.delete(existing_reaction)
         else:
             existing_reaction.reaction = reaction
+            if reaction == ReactionEnum.LIKE:
+                should_notify = True
     else:
         new_reaction = MovieCommentReaction(
             user_id=current_user.id,
@@ -279,6 +292,8 @@ async def toggle_comment_reaction(
             reaction=reaction
         )
         db.add(new_reaction)
+        if reaction == ReactionEnum.LIKE:
+            should_notify = True
 
     try:
         await db.commit()
@@ -288,6 +303,22 @@ async def toggle_comment_reaction(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update reaction"
         ) from e
+
+
+    if should_notify and comment.user_id != current_user.id:
+        first_name = await db.scalar(
+            select(UserProfileModel.first_name)
+            .where(UserProfileModel.user_id == current_user.id)
+        )
+        liker_name = first_name or "A user"
+
+        create_and_send_notification.delay(
+            user_id=comment.user_id,
+            notification_type=NotificationEnum.COMMENT_LIKE.value,
+            movie_comment_id=comment.id,
+            movie_id=comment.movie_id,
+            extra_text=f"{liker_name} liked your comment"
+        )
 
     return await get_comment_response_dto(comment_id, db, current_user.id)
 

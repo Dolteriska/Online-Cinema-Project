@@ -24,6 +24,8 @@ from src.schemas.admin_movie_schema import (StarCreate,
 from src.schemas.movies_schema import CertificationResponse, DirectorResponse, StarResponse, GenreResponse, \
     MovieResponseSchema
 from src.schemas.users_schema import MessageResponseSchema
+from src.tasks.tasks import notify_users_about_new_release
+
 router = APIRouter()
 
 #CREATE
@@ -186,6 +188,8 @@ async def create_movie(movie_data: MovieCreateSchema, db: AsyncSession = Depends
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Database integrity constraint violated (check foreign keys)"
         ) from e
+
+    notify_users_about_new_release.delay(new_movie.id, new_movie.name)
     return MessageResponseSchema(message="Movie created successfully!")
 
 #UPDATE
