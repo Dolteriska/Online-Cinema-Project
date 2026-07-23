@@ -112,7 +112,6 @@ async def get_movie_comments_tree(
     for comment in all_comments:
         is_deleted = comment.is_deleted
 
-        # Если комментарий удален, подставляем заглушку для юзера, чтобы Pydantic не падал
         user_data = None
         if not is_deleted and comment.user and comment.user.profile:
             user_data = UserProfileShortResponse(
