@@ -26,19 +26,12 @@ class BaseCommentSchema(BaseModel):
             return value.profile
         return value
 
-class CommentReplyReadSchema(BaseCommentSchema):
-    likes_count: int = 0
-    dislikes_count: int = 0
-    my_reaction: Optional[ReactionEnum] = None
-
 
 class CommentReadSchema(BaseCommentSchema):
     likes_count: int = 0
     dislikes_count: int = 0
     my_reaction: Optional[ReactionEnum] = None
 
-    replies: List[CommentReplyReadSchema] = Field(default_factory=list)
+    replies: List["CommentReadSchema"] = Field(default_factory=list)
 
-
-
-
+CommentReadSchema.model_rebuild()
