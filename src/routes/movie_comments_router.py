@@ -16,43 +16,72 @@ from src.database.models.users import UserModel, UserProfileModel
 from src.database.models.movies import Movie
 from src.database.session import get_db
 from src.schemas.movie_comments_schema import (CommentReadSchema,
-                                               CommentCreateSchema, CommentReplyReadSchema)
+                                               CommentCreateSchema)
+from src.schemas.users_profile_schema import UserProfileShortResponse
 
 router = APIRouter()
 
 
 @router.get("/movies/{movie_id}/comments/", response_model=List[CommentReadSchema])
-async def get_movie_comments(
+async def get_movie_comments_tree(
         movie_id: int,
         db: AsyncSession = Depends(get_db)
 ):
     stmt = (
         select(MovieComment)
-        .where(
-            MovieComment.movie_id == movie_id,
-            MovieComment.parent_id.is_(None)
-        )
+        .where(MovieComment.movie_id == movie_id)
         .options(
-            joinedload(MovieComment.user).joinedload(UserModel.profile),
-            selectinload(MovieComment.replies)
-            .joinedload(MovieComment.user)
-            .joinedload(UserModel.profile)
+            joinedload(MovieComment.user).joinedload(UserModel.profile)
         )
-        .order_by(MovieComment.created_at.desc())
+        .order_by(MovieComment.created_at.asc())
     )
-    result = await db.execute(stmt)
-    comments = result.scalars().unique().all()
 
-    if not comments:
+    result = await db.execute(stmt)
+    all_comments = result.scalars().unique().all()
+
+    if not all_comments:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="The movie with given ID has no comments yet or does not exist"
         )
 
-    return comments
+    nodes_map: dict[int, CommentReadSchema] = {}
+    root_comments: list[CommentReadSchema] = []
+
+    for comment in all_comments:
+        comment_dict = {
+            "id": comment.id,
+            "text": comment.text,
+            "created_at": comment.created_at,
+            "is_deleted": comment.is_deleted,
+            "user": UserProfileShortResponse(id=comment.user_id,
+                                             first_name=comment.user.profile.first_name,
+                                             last_name=comment.user.profile.last_name,
+                                             avatar=comment.user.profile.avatar),
+            "likes_count": getattr(comment, "likes_count", 0),
+            "dislikes_count": getattr(comment, "dislikes_count", 0),
+            "my_reaction": getattr(comment, "my_reaction", None),
+            "replies": []
+        }
+
+        node = CommentReadSchema.model_validate(comment_dict)
+        nodes_map[comment.id] = node
+
+    for comment in all_comments:
+        node = nodes_map[comment.id]
+        if comment.parent_id is None:
+            root_comments.append(node)
+        else:
+            parent_node = nodes_map.get(comment.parent_id)
+            if parent_node:
+                parent_node.replies.append(node)
+
+    root_comments.reverse()
+
+    return root_comments
 
 
-@router.post("/movies/{movie_id}/comments/", response_model=CommentReadSchema)
+@router.post("/movies/{movie_id}/comments/", response_model=CommentReadSchema, status_code=status.HTTP_201_CREATED)
 async def create_movie_comment(
         movie_id: int,
         comment_data: CommentCreateSchema,
@@ -80,14 +109,16 @@ async def create_movie_comment(
     stmt = (
         select(MovieComment)
         .options(
-            joinedload(MovieComment.user).joinedload(UserModel.profile)
+            joinedload(MovieComment.user)
+            .joinedload(UserModel.profile),
+            selectinload(MovieComment.replies)
         )
         .where(MovieComment.id == new_comment.id)
     )
     result = await db.execute(stmt)
     return result.scalar_one()
 
-@router.post("/comments/{comment_id}/replies/", response_model=CommentReplyReadSchema)
+@router.post("/comments/{comment_id}/replies/", response_model=CommentReadSchema, status_code=status.HTTP_201_CREATED)
 async def create_comment_reply(
     comment_id: int,
     reply_data: CommentCreateSchema,
@@ -124,7 +155,8 @@ async def create_comment_reply(
     stmt = (
         select(MovieComment)
         .options(
-            joinedload(MovieComment.user).joinedload(UserModel.profile)
+            joinedload(MovieComment.user).joinedload(UserModel.profile),
+            selectinload(MovieComment.replies)
         )
         .where(MovieComment.id == new_reply.id)
     )
