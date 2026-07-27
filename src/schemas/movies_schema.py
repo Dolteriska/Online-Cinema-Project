@@ -125,3 +125,13 @@ class MovieListResponseSchema(BaseModel):
     offset: int
     next: str | None = None
     previous: str | None = None
+
+
+class MovieInShoppingCartResponseSchema(BaseModel):
+    id: int
+    name: str
+    price: Decimal
+    genres: list[GenreResponse]
+    year: int
+
+    model_config = {"from_attributes": True}
