@@ -40,6 +40,7 @@ if TYPE_CHECKING:
                                                         MovieCommentReaction,
                                                         UserNotification,
                                                         MoviePurchase)
+    from src.database.models.carts import Cart
 
 class UserGroupEnum(str, enum.Enum):
     USER = "USER"
@@ -141,6 +142,15 @@ class UserModel(Base):
         "MoviePurchase",
         back_populates="user"
     )
+
+    cart: Mapped[Optional["Cart"]] = relationship(
+        "Cart",
+        back_populates="user",
+        cascade = "all, delete-orphan"
+    )
+
+
+
 
 
     def __repr__(self):
