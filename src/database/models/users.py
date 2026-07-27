@@ -41,6 +41,7 @@ if TYPE_CHECKING:
                                                         UserNotification,
                                                         MoviePurchase)
     from src.database.models.carts import Cart
+    from src.database.models.orders import Order
 
 class UserGroupEnum(str, enum.Enum):
     USER = "USER"
@@ -147,6 +148,12 @@ class UserModel(Base):
         "Cart",
         back_populates="user",
         cascade = "all, delete-orphan"
+    )
+
+    orders: Mapped[List["Order"]] = relationship(
+        "Order",
+        back_populates="user",
+        cascade="all, delete-orphan"
     )
 
 

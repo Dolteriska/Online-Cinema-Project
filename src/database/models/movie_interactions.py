@@ -25,6 +25,7 @@ from src.database.base import Base
 if TYPE_CHECKING:
     from src.database.models.users import UserModel
     from src.database.models.movies import Movie
+    from src.database.models.orders import Order
 
 
 class ReactionEnum(str, enum.Enum):
@@ -325,6 +326,11 @@ class MoviePurchase(Base):
         nullable=False
     )
 
+    order_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("orders.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
     purchase_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -338,3 +344,4 @@ class MoviePurchase(Base):
 
     user: Mapped["UserModel"] = relationship("UserModel")
     movie: Mapped["Movie"] = relationship("Movie")
+    order: Mapped[Optional["Order"]] = relationship("Order")

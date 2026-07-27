@@ -27,6 +27,7 @@ if TYPE_CHECKING:
                                                         MovieRating,
                                                         MoviePurchase)
     from src.database.models.carts import CartItem
+    from src.database.models.orders import OrderItem
 
 movie_genres = Table(
     "movie_genres",
@@ -177,6 +178,12 @@ class Movie(Base):
     in_cart: Mapped[list["CartItem"]] = relationship(
         "CartItem",
         back_populates="movie"
+    )
+
+    order_items: Mapped[List["OrderItem"]] = relationship(
+        "OrderItem",
+        back_populates="movie",
+        cascade="all, delete-orphan"
     )
 
     @property
