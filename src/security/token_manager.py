@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-
+from src.config.settings import settings
 from jose import jwt, JWTError, ExpiredSignatureError
 
 from src.exceptions.security import TokenExpiredError, InvalidTokenError
@@ -12,8 +12,8 @@ class JWTAuthManager(JWTAuthManagerInterface):
     A manager for creating, decoding, and verifying JWT access and refresh tokens.
     """
 
-    _ACCESS_KEY_TIMEDELTA_MINUTES = 60
-    _REFRESH_KEY_TIMEDELTA_MINUTES = 60 * 24 * 7
+    _ACCESS_KEY_TIMEDELTA_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    _REFRESH_KEY_TIMEDELTA_MINUTES = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60
 
     def __init__(self, secret_key_access: str, secret_key_refresh: str, algorithm: str):
         """
