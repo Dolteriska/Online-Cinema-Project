@@ -12,7 +12,7 @@ class UserNotificationCreateSchema(BaseModel):
     def validate_notification_consistency(self):
         """Check of a notification type"""
 
-        if self.notification_type in ('COMMENT_REPLY', 'COMMENT_LIKE'):
+        if self.notification_type in (NotificationEnum.COMMENT_REPLY, NotificationEnum.COMMENT_LIKE):
             if self.movie_comment_id is None:
                 raise ValueError(
                     f"type '{self.notification_type}' needs movie_comment_id"
@@ -22,7 +22,7 @@ class UserNotificationCreateSchema(BaseModel):
                     f"type '{self.notification_type}' shouldn't have movie_id"
                 )
 
-        elif self.notification_type == 'NEW_RELEASE':
+        elif self.notification_type == NotificationEnum.NEW_RELEASE:
             if self.movie_id is None:
                 raise ValueError(
                     "type 'NEW_RELEASE' needs movie_id"
