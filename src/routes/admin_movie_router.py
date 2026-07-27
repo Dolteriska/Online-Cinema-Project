@@ -213,7 +213,7 @@ async def update_simple_entity(model, entity_id: int, update_data: BaseModel, db
 
 @router.patch(
     "/genres/{genre_id}",
-    response_model=GenreResponse,
+    response_model=MessageResponseSchema,
     summary="Update Genre"
 )
 async def update_genre(
@@ -227,7 +227,7 @@ async def update_genre(
 
 @router.patch(
     "/stars/{star_id}",
-    response_model=StarResponse,
+    response_model=MessageResponseSchema,
     summary="Update Star"
 )
 async def update_star(
@@ -241,7 +241,7 @@ async def update_star(
 
 @router.patch(
     "/directors/{director_id}",
-    response_model=DirectorResponse,
+    response_model=MessageResponseSchema,
     summary="Update Director"
 )
 async def update_director(
@@ -255,7 +255,7 @@ async def update_director(
 
 @router.patch(
     "/certifications/{certification_id}",
-    response_model=CertificationResponse,
+    response_model=MessageResponseSchema,
     summary="Update Certification"
 )
 async def update_certification(
@@ -361,10 +361,20 @@ async def delete_simple_entity(model, entity_id: int, db: AsyncSession, entity_n
     obj = result.scalar_one_or_none()
 
     if not obj:
-        raise HTTPException(status_code=404, detail=f"{entity_name} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{entity_name} not found"
+        )
 
-    await db.delete(obj)
-    await db.commit()
+    try:
+        await db.delete(obj)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete {entity_name.lower()} because it is currently linked to one or more movies"
+        )
 
     return {"message": f"{entity_name} successfully deleted"}
 
