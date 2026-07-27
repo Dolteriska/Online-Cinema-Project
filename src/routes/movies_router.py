@@ -43,15 +43,17 @@ async def get_movies():
 @router.get("/movies/", response_model=MovieListResponseSchema)
 async def get_movie_list(request: Request,
                          db: AsyncSession = Depends(get_db),
-                         min_year: Optional[int] = Query(None),
-                         max_year: Optional[int] = Query(None),
-                         min_imdb: Optional[float] = Query(None),
-                         max_imdb: Optional[float] = Query(None),
-                         min_price: Optional[Decimal] = Query(None),
-                         max_price: Optional[Decimal] = Query(None),
+                         min_year: Optional[int] = Query(None, ge=1888),
+                         max_year: Optional[int] = Query(None, ge=1888),
+                         min_imdb: Optional[float] = Query(None, ge=0, le=10),
+                         max_imdb: Optional[float] = Query(None, ge=0, le=10),
+                         min_price: Optional[Decimal] = Query(None, ge=0),
+                         max_price: Optional[Decimal] = Query(None, ge=0),
                          certification_id: Optional[int] = Query(None),
                          title: Optional[str] = Query(None),
                          description: Optional[str] = Query(None),
+                         actor: Optional[str] = Query(None),
+                         director: Optional[str] = Query(None),
                          genre_ids: Optional[list[int]] = Query(None),
                          star_ids: Optional[list[int]] = Query(None),
                          director_ids: Optional[list[int]] = Query(None),
@@ -62,55 +64,109 @@ async def get_movie_list(request: Request,
     base_stmt = select(Movie)
 
     if title:
-        title = title.strip()
-        base_stmt = base_stmt.filter(Movie.name.ilike(f"%{title}%"))
+        base_stmt = base_stmt.filter(Movie.name.ilike(f"%{title.strip()}%"))
+
     if description:
-        description = description.strip()
-        base_stmt = base_stmt.filter(Movie.description.ilike(f"%{description}%"))
-    if min_year:
+        base_stmt = base_stmt.filter(Movie.description.ilike(f"%{description.strip()}%"))
+
+    if actor:
+        actor_subq = (
+            select(1)
+            .select_from(movie_stars)
+            .join(Star, Star.id == movie_stars.c.star_id)
+            .filter(
+                movie_stars.c.movie_id == Movie.id,
+                Star.name.ilike(f"%{actor.strip()}%")
+            )
+        )
+        base_stmt = base_stmt.filter(actor_subq.exists())
+
+    if director:
+        director_subq = (
+            select(1)
+            .select_from(movie_directors)
+            .join(Director, Director.id == movie_directors.c.director_id)
+            .filter(
+                movie_directors.c.movie_id == Movie.id,
+                Director.name.ilike(f"%{director.strip()}%")
+            )
+        )
+        base_stmt = base_stmt.filter(director_subq.exists())
+
+    if min_year is not None and max_year is not None and min_year > max_year:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="min_year cannot be greater than max_year"
+        )
+
+    if min_imdb is not None and max_imdb is not None and min_imdb > max_imdb:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="min_imdb cannot be greater than max_imdb"
+        )
+
+    if min_price is not None and max_price is not None and min_price > max_price:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="min_price cannot be greater than max_price"
+        )
+
+    if min_year is not None:
         base_stmt = base_stmt.filter(Movie.year >= min_year)
-    if max_year:
+    if max_year is not None:
         base_stmt = base_stmt.filter(Movie.year <= max_year)
-    if min_imdb:
+    if min_imdb is not None:
         base_stmt = base_stmt.filter(Movie.imdb >= min_imdb)
-    if max_imdb:
+    if max_imdb is not None:
         base_stmt = base_stmt.filter(Movie.imdb <= max_imdb)
-    if min_price:
+    if min_price is not None:
         base_stmt = base_stmt.filter(Movie.price >= min_price)
-    if max_price:
+    if max_price is not None:
         base_stmt = base_stmt.filter(Movie.price <= max_price)
-    if certification_id:
+    if certification_id is not None:
         base_stmt = base_stmt.filter(Movie.certification_id == certification_id)
 
     if genre_ids:
-        base_stmt = (
-            base_stmt.join(movie_genres)
-            .filter(movie_genres.c.genre_id.in_(genre_ids))
-            .group_by(Movie.id)
-            .having(func.count(movie_genres.c.genre_id) == len(genre_ids))
+        genre_subq = (
+            select(movie_genres.c.movie_id)
+            .where(movie_genres.c.genre_id.in_(genre_ids))
+            .group_by(movie_genres.c.movie_id)
+            .having(func.count(func.distinct(movie_genres.c.genre_id)) == len(genre_ids))
         )
+        base_stmt = base_stmt.where(Movie.id.in_(genre_subq))
+
     if star_ids:
-        base_stmt = (
-            base_stmt.join(movie_stars)
-            .filter(movie_stars.c.star_id.in_(star_ids))
-            .group_by(Movie.id)
-            .having(func.count(movie_stars.c.star_id) == len(star_ids))
+        star_subq = (
+            select(movie_stars.c.movie_id)
+            .where(movie_stars.c.star_id.in_(star_ids))
+            .group_by(movie_stars.c.movie_id)
+            .having(func.count(func.distinct(movie_stars.c.star_id)) == len(star_ids))
         )
+        base_stmt = base_stmt.where(Movie.id.in_(star_subq))
+
     if director_ids:
-        base_stmt = (
-            base_stmt.join(movie_directors)
-            .filter(movie_directors.c.director_id.in_(director_ids))
-            .group_by(Movie.id)
-            .having(func.count(movie_directors.c.director_id) == len(director_ids))
+        director_subq = (
+            select(movie_directors.c.movie_id)
+            .where(movie_directors.c.director_id.in_(director_ids))
+            .group_by(movie_directors.c.movie_id)
+            .having(func.count(func.distinct(movie_directors.c.director_id)) == len(director_ids))
         )
+        base_stmt = base_stmt.where(Movie.id.in_(director_subq))
 
     total_stmt = select(func.count()).select_from(base_stmt.subquery())
     total_result = await db.execute(total_stmt)
     total = total_result.scalar_one_or_none() or 0
 
     if total == 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Movies with such query parameters were not found or the database is emtpy")
+        return MovieListResponseSchema(
+            items=[],
+            total=total,
+            limit=limit,
+            offset=offset,
+            next=None,
+            previous=None,
+        )
+
     stmt = base_stmt.options(
         selectinload(Movie.certification),
         selectinload(Movie.genres),
@@ -142,9 +198,6 @@ async def get_movie_list(request: Request,
                 (Movie.votes * 0.001)
         )
 
-        if genre_ids or star_ids or director_ids:
-            stmt = stmt.group_by(Movie.id, purchases_sub.c.p_count, favorites_sub.c.f_count)
-
         stmt = stmt.order_by(popularity_score.desc())
 
     elif sort == MovieSortBy.price_asc:
@@ -153,13 +206,15 @@ async def get_movie_list(request: Request,
         stmt = stmt.order_by(Movie.price.desc())
     elif sort == MovieSortBy.year_desc:
         stmt = stmt.order_by(Movie.year.desc())
+    elif sort == MovieSortBy.year_asc:
+        stmt = stmt.order_by(Movie.year.asc())
     else:
         stmt = stmt.order_by(Movie.id.desc())
 
     stmt = stmt.limit(limit).offset(offset)
 
     result = await db.execute(stmt)
-    movies = result.scalars().all()
+    movies = result.scalars().unique().all()
 
     next_offset = offset + limit
     previous_offset = max(offset - limit, 0)
