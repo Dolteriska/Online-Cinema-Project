@@ -26,6 +26,7 @@ if TYPE_CHECKING:
                                                         FavoriteMovie,
                                                         MovieRating,
                                                         MoviePurchase)
+    from src.database.models.carts import CartItem
 
 movie_genres = Table(
     "movie_genres",
@@ -170,6 +171,11 @@ class Movie(Base):
 
     purchases: Mapped[List["MoviePurchase"]] = relationship(
         "MoviePurchase",
+        back_populates="movie"
+    )
+
+    in_cart: Mapped[list["CartItem"]] = relationship(
+        "CartItem",
         back_populates="movie"
     )
 

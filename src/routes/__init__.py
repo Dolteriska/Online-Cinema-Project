@@ -6,3 +6,5 @@ from src.routes.movie_and_user_interaction_routes import router as movie_and_use
 from src.routes.user_profile_router import router as user_profile_router
 from src.routes.admin_user_profile_router import router as user_profile_admin_router
 from src.routes.movie_comments_router import router as commentary_router
+from src.routes.user_shopping_cart_router import router as shopping_cart_router
+from src.routes.admin_user_shopping_cart_router import router as shopping_cart_admin_router

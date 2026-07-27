@@ -6,7 +6,9 @@ from src.routes import (auth_router,
                         movie_and_user_interaction_router,
                         user_profile_router,
                         user_profile_admin_router,
-                        commentary_router)
+                        commentary_router,
+                        shopping_cart_router,
+                        shopping_cart_admin_router)
 from fastapi.staticfiles import StaticFiles
 from src.celery_app import celery_app # noqa
 
@@ -19,6 +21,8 @@ api_version_prefix = "/api/v1"
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+app.include_router(shopping_cart_router, prefix=f"{api_version_prefix}/theater/cart", tags=["Cart"])
+app.include_router(shopping_cart_admin_router, prefix=f"{api_version_prefix}/admin/theater/cart", tags=["Cart admin"])
 app.include_router(commentary_router, prefix=f"{api_version_prefix}/theater", tags=["Commentary"])
 app.include_router(auth_router, prefix=f"{api_version_prefix}/accounts", tags=["Accounts"])
 app.include_router(user_admin_router, prefix=f"{api_version_prefix}/admin/accounts", tags=["Accounts admin"])
