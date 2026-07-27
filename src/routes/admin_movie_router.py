@@ -6,6 +6,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from pydantic import BaseModel
 from src.config.dependencies import require_moderator
 from src.database.models import UserModel, MoviePurchase
+from src.database.models.carts import Cart, CartItem
 from src.database.models.movies import (Movie,
                                         Genre,
                                         Star,
@@ -416,6 +417,14 @@ async def delete_movie(movie_id: int, db: AsyncSession = Depends(get_db),
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Can't delete a bought movie"
+        )
+    in_cart_stmt = select(exists().where(CartItem.movie_id == movie_id))
+    in_cart = (await db.execute(in_cart_stmt)).scalar()
+
+    if in_cart:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can't delete a movie since it's in a cart"
         )
 
     await db.delete(movie)
