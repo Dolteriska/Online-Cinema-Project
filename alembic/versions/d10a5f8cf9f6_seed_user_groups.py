@@ -38,4 +38,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DELETE FROM user_groups WHERE name IN ('user', 'moderator', 'admin')")
+    op.execute("DELETE FROM user_groups WHERE name IN ('USER', 'MODERATOR', 'ADMIN')")
