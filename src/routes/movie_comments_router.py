@@ -86,7 +86,8 @@ async def get_comment_response_dto(
 @router.get("/movies/{movie_id}/comments/", response_model=List[CommentReadSchema])
 async def get_movie_comments_tree(
         movie_id: int,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(get_current_user)
 ):
     stmt = (
         select(MovieComment)
@@ -105,6 +106,31 @@ async def get_movie_comments_tree(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="The movie with given ID has no comments yet or does not exist"
         )
+
+    comment_ids = [c.id for c in all_comments]
+
+    reactions_stmt = select(MovieCommentReaction).where(
+        MovieCommentReaction.comment_id.in_(comment_ids)
+    )
+    reactions_result = await db.execute(reactions_stmt)
+    all_reactions = reactions_result.scalars().all()
+
+    likes_map = {}
+    dislikes_map = {}
+    my_reactions_map = {}
+
+    current_user_id = current_user.id if current_user else None
+
+    for reaction in all_reactions:
+        c_id = reaction.comment_id
+
+        if reaction.reaction == ReactionEnum.LIKE:
+            likes_map[c_id] = likes_map.get(c_id, 0) + 1
+        elif reaction.reaction == ReactionEnum.DISLIKE:
+            dislikes_map[c_id] = dislikes_map.get(c_id, 0) + 1
+
+        if current_user_id and reaction.user_id == current_user_id:
+            my_reactions_map[c_id] = reaction.reaction
 
     nodes_map: dict[int, CommentReadSchema] = {}
     root_comments: list[CommentReadSchema] = []
@@ -134,9 +160,9 @@ async def get_movie_comments_tree(
             "created_at": comment.created_at,
             "is_deleted": is_deleted,
             "user": user_data,
-            "likes_count": 0 if is_deleted else getattr(comment, "likes_count", 0),
-            "dislikes_count": 0 if is_deleted else getattr(comment, "dislikes_count", 0),
-            "my_reaction": None if is_deleted else getattr(comment, "my_reaction", None),
+            "likes_count": 0 if is_deleted else likes_map.get(comment.id, 0),
+            "dislikes_count": 0 if is_deleted else dislikes_map.get(comment.id, 0),
+            "my_reaction": None if is_deleted else my_reactions_map.get(comment.id),
             "replies": []
         }
 
@@ -164,6 +190,15 @@ async def create_movie_comment(
         db: AsyncSession = Depends(get_db),
         current_user: UserModel = Depends(require_profile)
 ):
+    stmt = select(Movie).where(Movie.id == movie_id)
+    result = await db.execute(stmt)
+    movie = result.scalar_one_or_none()
+
+    if not movie:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Movie with given ID was not found"
+        )
     new_comment = MovieComment(
         user_id=current_user.id,
         movie_id=movie_id,
@@ -233,7 +268,6 @@ async def create_comment_reply(
             user_id=parent_comment.user_id,
             notification_type=NotificationEnum.COMMENT_REPLY.value,
             movie_comment_id=new_reply.id,
-            movie_id=parent_comment.movie_id,
             extra_text=new_reply.text
         )
 
@@ -316,7 +350,6 @@ async def toggle_comment_reaction(
             user_id=comment.user_id,
             notification_type=NotificationEnum.COMMENT_LIKE.value,
             movie_comment_id=comment.id,
-            movie_id=comment.movie_id,
             extra_text=liker_name
         )
 
