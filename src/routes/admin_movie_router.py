@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, Query, Request, HTTPException, status
-from sqlalchemy import select, func
+from sqlalchemy import select, exists
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from pydantic import BaseModel
 from src.config.dependencies import require_moderator
-from src.database.models import UserModel
+from src.database.models import UserModel, MoviePurchase
 from src.database.models.movies import (Movie,
                                         Genre,
                                         Star,
@@ -398,6 +398,15 @@ async def delete_movie(movie_id: int, db: AsyncSession = Depends(get_db),
 
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
+
+    has_purchases_stmt = select(exists().where(MoviePurchase.movie_id == movie_id))
+    has_purchases = (await db.execute(has_purchases_stmt)).scalar()
+
+    if has_purchases:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can't delete a bought movie"
+        )
 
     await db.delete(movie)
     await db.commit()
