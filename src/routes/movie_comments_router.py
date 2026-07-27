@@ -310,14 +310,14 @@ async def toggle_comment_reaction(
             select(UserProfileModel.first_name)
             .where(UserProfileModel.user_id == current_user.id)
         )
-        liker_name = first_name or "A user"
+        liker_name = first_name
 
         create_and_send_notification.delay(
             user_id=comment.user_id,
             notification_type=NotificationEnum.COMMENT_LIKE.value,
             movie_comment_id=comment.id,
             movie_id=comment.movie_id,
-            extra_text=f"{liker_name} liked your comment"
+            extra_text=liker_name
         )
 
     return await get_comment_response_dto(comment_id, db, current_user.id)
