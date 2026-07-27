@@ -27,6 +27,7 @@ class MovieSortBy(str, Enum):
     price_asc = "price_asc"
     price_desc = "price_desc"
     year_desc = "year_desc"
+    year_asc = "year_asc"
     popularity = "popularity"
 
 
