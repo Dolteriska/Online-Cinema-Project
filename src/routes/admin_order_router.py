@@ -49,7 +49,7 @@ router = APIRouter()
 @router.get("/list/", response_model=AdminOrderListResponseSchema)
 async def get_all_orders(
         request: Request,
-        current_user: UserModel = Depends(get_current_user),
+        current_admin: UserModel = Depends(require_admin),
         db: AsyncSession = Depends(get_db),
         user_id: Optional[int] = Query(None),
         created_at: Optional[datetime] = Query(None),
@@ -109,7 +109,7 @@ async def get_all_orders(
 
 
 
-@router.patch("{order_id}/cancel/", response_model=MessageResponseSchema)
+@router.patch("/{order_id}/cancel/", response_model=MessageResponseSchema)
 async def cancel_order_with_id(
         order_id: int,
         current_admin: UserModel = Depends(require_admin),
