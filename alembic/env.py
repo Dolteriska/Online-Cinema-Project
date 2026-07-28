@@ -20,6 +20,8 @@ from src.database.models.users import (
 )  # noqa
 from src.database.models.carts import (Cart,
                                        CartItem) # noqa
+from src.database.models.orders import (Order,
+                                        OrderItem) # noqa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -1,4 +1,4 @@
-from typing import Any, Self
+from typing import Any, Self, Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
 from src.database.validators.users import validate_email, validate_password_strength
@@ -88,3 +88,11 @@ class ChangePasswordRequestSchema(BaseModel):
     @classmethod
     def validate_new_password(cls, value):
         return validate_password_strength(value)
+
+
+
+class UserShortResponseSchema(BaseModel):
+    id: int
+    email: EmailStr
+
+    model_config = {"from_attributes": True}
