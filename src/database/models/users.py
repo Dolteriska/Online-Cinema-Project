@@ -42,6 +42,7 @@ if TYPE_CHECKING:
                                                         MoviePurchase)
     from src.database.models.carts import Cart
     from src.database.models.orders import Order
+    from src.database.models.payment import Payment
 
 class UserGroupEnum(str, enum.Enum):
     USER = "USER"
@@ -155,6 +156,10 @@ class UserModel(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+
+    payments: Mapped[List["Payment"]] = relationship(
+        "Payment",
+        back_populates="user")
 
 
 
