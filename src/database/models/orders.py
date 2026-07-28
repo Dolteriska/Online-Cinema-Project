@@ -38,7 +38,15 @@ class Order(Base):
         nullable=False,
     )
 
-    status: Mapped[StatusEnum] = mapped_column(Enum(StatusEnum), nullable=False, default=StatusEnum.PENDING)
+    status: Mapped[StatusEnum] = mapped_column(
+        Enum(
+            StatusEnum,
+            name="statusenum",
+            values_callable=lambda x: [e.value for e in x]
+        ),
+        nullable=False,
+        default=StatusEnum.PENDING
+    )
     total_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
 
 
