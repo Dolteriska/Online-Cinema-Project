@@ -135,3 +135,13 @@ class MovieInShoppingCartResponseSchema(BaseModel):
     year: int
 
     model_config = {"from_attributes": True}
+
+
+class MovieShortResponseOrderSchema(BaseModel):
+    id: int
+    name: str
+    year: int
+    price: Decimal
+
+    model_config = {"from_attributes": True}
+
