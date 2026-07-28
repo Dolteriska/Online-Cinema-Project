@@ -209,6 +209,12 @@ async def cancel_order(
             detail="Order with given ID was not found"
         )
 
+    if order.status == StatusEnum.PAID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can't cancel already paid order"
+        )
+
     try:
         order.status = StatusEnum.CANCELED
         await db.commit()
