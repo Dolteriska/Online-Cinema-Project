@@ -1,5 +1,5 @@
 import enum
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import (
     ForeignKey,
     String,
@@ -17,8 +17,12 @@ from sqlalchemy.orm import (
     relationship,
 )
 from src.database.base import Base
-from src.database.models import Movie
-from src.database.models.users import UserModel
+
+if TYPE_CHECKING:
+    from src.database.models import Movie
+    from src.database.models.users import UserModel
+    from src.database.models.payment import (Payment,
+                                             PaymentItem)
 
 class StatusEnum(str, enum.Enum):
     PENDING = "pending"
@@ -61,6 +65,10 @@ class Order(Base):
         back_populates="orders"
     )
 
+    payments: Mapped[List["Payment"]] = relationship(
+        "Payment",
+        back_populates="order")
+
 
 
 
@@ -91,3 +99,7 @@ class OrderItem(Base):
         "Movie",
         back_populates="order_items"
     )
+
+    payment_items: Mapped[List["PaymentItem"]] = relationship(
+        "PaymentItem",
+        back_populates="order_item")

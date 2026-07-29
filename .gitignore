@@ -114,3 +114,8 @@ celerybeat-schedule.dir
 
 #staticfiles
 /static
+
+
+#Executables & CLI tools
+stripe.exe
+stripe

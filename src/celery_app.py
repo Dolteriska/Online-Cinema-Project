@@ -2,6 +2,7 @@ from datetime import timedelta
 from celery import Celery
 from src.config.settings import settings
 
+import src.database.models
 celery_app = Celery("online_cinema")
 
 celery_app.conf.update(

@@ -203,3 +203,25 @@ async def _async_notify_users_about_new_release(movie_id: int, movie_title: str)
 @shared_task(name="notify_all_about_new_movie")
 def notify_users_about_new_release(movie_id: int, movie_title: str):
     return run_async(_async_notify_users_about_new_release(movie_id, movie_title))
+
+
+# --- 5. PAYMENT CONFIRMATION SENDER ---
+
+async def _async_send_payment_confirmation_email(email: str, confirmation_url: str):
+    html = f"""
+    <html>
+        <body>
+            <p>Thanks for your purchase! Your payment has been confirmed.</p>
+            <p><a href="{confirmation_url}">View your order</a></p>
+        </body>
+    </html>
+    """
+    await send_async_email(email, "Payment confirmation - Online Cinema", html)
+    return f"Email sent successfully to {email}"
+
+@shared_task(name="send_payment_confirmation_email", bind=True, max_retries=3, default_retry_delay=60)
+def send_payment_confirmation_email(self, email: str, confirmation_url: str):
+    try:
+        return run_async(_async_send_payment_confirmation_email(email, confirmation_url))
+    except Exception as e:
+        raise self.retry(e=e)

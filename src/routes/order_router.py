@@ -152,7 +152,7 @@ async def get_orders(request: Request,
         limit: int = Query(default=20, ge=1, le=100),
         offset: int = Query(default=0, ge=0)
 ):
-    stmt = (select(Order).where(Order.user_id == current_user.id)
+    stmt = (select(Order).where(Order.user_id == current_user.id).offset(offset).limit(limit)
             .options(selectinload(Order.items).selectinload(OrderItem.movie)))
     result = await db.execute(stmt)
     orders = result.scalars().all()
