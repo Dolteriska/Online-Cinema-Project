@@ -1,4 +1,4 @@
-import os
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,12 +9,18 @@ from src.database.models.users import UserProfileModel
 from src.schemas.users_profile_schema import UserProfileCreate, UserProfileResponse, UserProfileUpdateSchema
 from src.schemas.admin_profile_schema import AdminUserProfileListResponseSchema
 from src.database.models.users import UserModel
+import asyncio
+from src.services.storage import storage_service
 
 router = APIRouter()
 
-UPLOAD_DIR = "static/avatars"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
+async def resolve_avatars_bulk(avatar_keys: set[str]) -> dict[str, Optional[str]]:
+    if not avatar_keys:
+        return {}
+    urls = await asyncio.gather(*[
+        asyncio.to_thread(storage_service.get_avatar_url, key) for key in avatar_keys
+    ])
+    return dict(zip(avatar_keys, urls))
 
 
 
@@ -38,7 +44,8 @@ async def get_all_profiles(
             UserProfileModel.last_name,
             UserProfileModel.gender,
             UserProfileModel.date_of_birth,
-            UserProfileModel.avatar
+            UserProfileModel.avatar,
+            UserProfileModel.info
         )
         .order_by(UserProfileModel.id.desc())
         .limit(limit)
@@ -46,6 +53,16 @@ async def get_all_profiles(
     )
     result = await db.execute(stmt)
     profiles = result.mappings().all()
+
+    avatar_keys = {p["avatar"] for p in profiles if p["avatar"]}
+    avatar_urls_map = await resolve_avatars_bulk(avatar_keys)
+
+    items = []
+    for profile in profiles:
+        profile_dict = dict(profile)
+        if profile_dict["avatar"]:
+            profile_dict["avatar"] = avatar_urls_map.get(profile_dict["avatar"])
+        items.append(UserProfileResponse.model_validate(profile_dict))
 
     next_offset = offset + limit
     previous_offset = max(offset - limit, 0)
@@ -68,7 +85,7 @@ async def get_all_profiles(
         )
 
     return AdminUserProfileListResponseSchema(
-        items=[UserProfileResponse.model_validate(profile) for profile in profiles],
+        items=items,
         total=total,
         limit=limit,
         offset=offset,
