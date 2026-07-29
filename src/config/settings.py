@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     #Login
     LOGIN_TIME_DAYS: int = 7
 
+    #API VERSION
+    API_V1_STR: str = "/api/v1"
+
 
     @property
     def REDIS_URL(self) -> str:
