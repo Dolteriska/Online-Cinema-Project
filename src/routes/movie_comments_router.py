@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 from typing import Optional, List
 from decimal import Decimal
+import asyncio
+from src.services.storage import storage_service
 from src.config.dependencies import get_current_user, require_profile
 from src.database.models import MovieComment, MovieCommentReaction
 from src.database.models.movie_interactions import (FavoriteMovie,
@@ -21,6 +23,17 @@ from src.schemas.movie_comments_schema import (CommentReadSchema,
 from src.schemas.users_profile_schema import UserProfileShortResponse
 from src.tasks.tasks import create_and_send_notification
 router = APIRouter()
+
+async def resolve_avatar_url(avatar_key: Optional[str]) -> Optional[str]:
+    if not avatar_key:
+        return None
+    return await asyncio.to_thread(storage_service.get_avatar_url, avatar_key)
+
+async def resolve_avatars_bulk(avatar_keys: set[str]) -> dict[str, Optional[str]]:
+    urls = await asyncio.gather(*[
+        asyncio.to_thread(storage_service.get_avatar_url, key) for key in avatar_keys
+    ])
+    return dict(zip(avatar_keys, urls))
 
 async def get_comment_response_dto(
     comment_id: int,
@@ -64,6 +77,8 @@ async def get_comment_response_dto(
         my_reaction_res = await db.execute(my_reaction_stmt)
         my_reaction = my_reaction_res.scalar_one_or_none()
 
+    avatar_url = await resolve_avatar_url(comment.user.profile.avatar)
+
     comment_dict = {
         "id": comment.id,
         "text": comment.text,
@@ -73,7 +88,7 @@ async def get_comment_response_dto(
             id=comment.user_id,
             first_name=comment.user.profile.first_name,
             last_name=comment.user.profile.last_name,
-            avatar=comment.user.profile.avatar
+            avatar=avatar_url
         ),
         "likes_count": likes_count,
         "dislikes_count": dislikes_count,
@@ -132,6 +147,13 @@ async def get_movie_comments_tree(
         if current_user_id and reaction.user_id == current_user_id:
             my_reactions_map[c_id] = reaction.reaction
 
+    avatar_keys = {
+        c.user.profile.avatar
+        for c in all_comments
+        if not c.is_deleted and c.user and c.user.profile and c.user.profile.avatar
+    }
+    avatar_urls_map = await resolve_avatars_bulk(avatar_keys)
+
     nodes_map: dict[int, CommentReadSchema] = {}
     root_comments: list[CommentReadSchema] = []
 
@@ -140,11 +162,12 @@ async def get_movie_comments_tree(
 
         user_data = None
         if not is_deleted and comment.user and comment.user.profile:
+            avatar_key = comment.user.profile.avatar
             user_data = UserProfileShortResponse(
                 id=comment.user_id,
                 first_name=comment.user.profile.first_name,
                 last_name=comment.user.profile.last_name,
-                avatar=comment.user.profile.avatar
+                avatar=avatar_urls_map.get(avatar_key) if avatar_key else None
             )
         elif is_deleted:
             user_data = UserProfileShortResponse(
