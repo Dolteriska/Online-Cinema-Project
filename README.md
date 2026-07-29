@@ -6,23 +6,23 @@ Repository: [Dolteriska/Online-Cinema-Project](https://github.com/Dolteriska/Onl
 
 ---
 
-##  Table of Contents
+## Table of Contents
 
-- [Project Overview](#-project-overview)
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Project Structure](#-project-structure)
-- [Database Schema](#-database-schema)
-- [Installation and Running](#-installation-and-running)
-- [Environment Variables](#-environment-variables)
-- [Database Migrations](#-database-migrations)
-- [API Documentation](#-api-documentation)
-- [Testing](#-testing)
-- [CI/CD](#-cicd)
+- [Project Overview](#project-overview)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Database Schema](#database-schema)
+- [Installation and Running](#installation-and-running)
+- [Environment Variables](#environment-variables)
+- [Database Migrations](#database-migrations)
+- [API Documentation](#api-documentation-work-in-progress)
+- [Testing](#testing-work-in-progress)
+- [CI/CD](#cicd-work-in-progress)
 
 ---
 
-##  Project Overview
+## Project Overview
 
 Online Cinema is a digital platform that allows users to select, watch, and purchase access to movies over the internet. The project covers the full lifecycle of such a service: from user registration and authentication to paying for orders via Stripe.
 
