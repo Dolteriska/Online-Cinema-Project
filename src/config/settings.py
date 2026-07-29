@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     #API VERSION
     API_V1_STR: str = "/api/v1"
 
+    #MINIO
+    MINIO_ENDPOINT_INTERNAL: str
+    MINIO_ENDPOINT_PUBLIC: str
+    MINIO_ACCESS_KEY: str
+    MINIO_SECRET_KEY: str
+    MINIO_BUCKET_NAME: str
+
 
     @property
     def REDIS_URL(self) -> str:
