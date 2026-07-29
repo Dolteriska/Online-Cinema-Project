@@ -10,7 +10,7 @@ from src.schemas.order_schema import OrderResponseSchema
 from src.schemas.users_schema import UserShortResponseSchema
 
 class AdminOrderResponseSchema(OrderResponseSchema):
-    user: Optional[UserShortResponseSchema]
+    user: UserShortResponseSchema
 
 
 class AdminOrderListResponseSchema(BaseModel):
