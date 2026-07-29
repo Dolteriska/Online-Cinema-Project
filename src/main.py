@@ -14,7 +14,6 @@ from src.routes import (auth_router,
                         order_admin_router,
                         payment_router,
                         payment_admin_router)
-from fastapi.staticfiles import StaticFiles
 from src.celery_app import celery_app # noqa
 
 app = FastAPI(
@@ -28,7 +27,6 @@ def health():
 
 api_version_prefix = settings.API_V1_STR
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(payment_admin_router, prefix=f"{api_version_prefix}/admin/payments", tags=["Payment admin"])
 app.include_router(payment_router, prefix=f"{api_version_prefix}/payments", tags=["Payment"])
 app.include_router(order_router, prefix=f"{api_version_prefix}/orders", tags=["Order"])
