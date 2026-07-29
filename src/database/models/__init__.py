@@ -24,3 +24,18 @@ from src.database.models.movie_interactions import (
     UserNotification,
     MoviePurchase,
 )
+
+from src.database.models.orders import (
+    Order,
+    OrderItem
+)
+
+from src.database.models.carts import (
+    Cart,
+    CartItem
+)
+
+from src.database.models.payment import (
+    PaymentItem,
+    Payment,
+)
