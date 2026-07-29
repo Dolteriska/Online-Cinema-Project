@@ -11,3 +11,4 @@ from src.routes.admin_user_shopping_cart_router import router as shopping_cart_a
 from src.routes.order_router import router as order_router
 from src.routes.admin_order_router import router as order_admin_router
 from src.routes.payment_router import router as payment_router
+from src.routes.admin_payment_router import router as payment_admin_router
