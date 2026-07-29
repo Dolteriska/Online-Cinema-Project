@@ -135,7 +135,7 @@ async def get_user_profile(
 
     if not user_profile:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_404_BAD_REQUEST,
             detail="You have no profile yet. Try creating profile visiting /profile/create/ endpoint"
         )
 
