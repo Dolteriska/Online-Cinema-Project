@@ -22,6 +22,10 @@ app = FastAPI(
     description="Description of project"
 )
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 api_version_prefix = settings.API_V1_STR
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
