@@ -6,7 +6,7 @@ Repository: [Dolteriska/Online-Cinema-Project](https://github.com/Dolteriska/Onl
 
 ---
 
-## 📋 Table of Contents
+##  Table of Contents
 
 - [Project Overview](#-project-overview)
 - [Features](#-features)
@@ -148,6 +148,12 @@ The project uses five logical groups of tables:
 - **Shopping Cart**: `carts`, `cart_items`.
 - **Orders**: `orders`, `order_items`.
 - **Payments**: `payments`, `payment_items`.
+
+- Accounts DB Schema: (https://dbdiagram.io/d/Accounts-app-675ef6bee763df1f00fd8ed1)
+- Movies DB Schema: (https://dbdiagram.io/d/Movies-app-675f03b9e763df1f00fe4769)
+- Shoppin Cart DB Schema: (https://dbdiagram.io/d/Cart-app-675f0d88e763df1f00fed027)
+- Orders DB Schema: (https://dbdiagram.io/d/Order-app-675f141ce763df1f00ff29cb)
+- Payment DB Schema: (https://dbdiagram.io/d/Payment-app-675f1a65e763df1f00ff70c6)
 
 Key relationships:
 
