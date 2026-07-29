@@ -2,6 +2,10 @@ import stripe
 from decimal import Decimal
 from typing import Optional
 from os import environ
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 stripe.api_key = environ.get("STRIPE_SECRET_KEY")
 
@@ -9,7 +13,7 @@ stripe.api_key = environ.get("STRIPE_SECRET_KEY")
 class StripeService:
     @staticmethod
     async def create_checkout_session(
-            payment_id: int,
+            order_id: int,
             order_items: list,
             success_url: str,
             cancel_url: str
@@ -36,7 +40,7 @@ class StripeService:
             mode="payment",
             success_url=success_url,
             cancel_url=cancel_url,
-            metadata={"payment_id": str(payment_id)}
+            metadata={"order_id": str(order_id)}
         )
 
         return session.url
