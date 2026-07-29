@@ -20,11 +20,33 @@ from src.schemas.users_profile_schema import UserProfileCreate, UserProfileRespo
     UserDeleteRequestSchema, DeleteProfileQuestionEnum
 from src.database.models.users import UserModel
 from src.schemas.users_schema import MessageResponseSchema
+from src.services.storage import storage_service
 
 router = APIRouter()
 
-UPLOAD_DIR = Path("static/avatars").resolve()
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_AVATAR_SIZE = 5 * 1024 * 1024
+
+def _validate_avatar(avatar: UploadFile, content: bytes) -> None:
+    if not avatar.content_type or avatar.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be an image (jpeg, png or webp)"
+        )
+    if len(content) > MAX_AVATAR_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Avatar file is too large (max 5 MB)"
+        )
+
+
+def _build_profile_response(profile: UserProfileModel, avatar_url: Optional[str]) -> UserProfileResponse:
+    response = UserProfileResponse.model_validate(profile)
+    response.avatar = avatar_url
+    return response
+
+
 
 #PROFILES
 
@@ -64,30 +86,19 @@ async def create_user_profile(
             detail="You already have a profile"
         )
 
-    avatar_path: Optional[str] = None
-    saved_file_path: Optional[Path] = None
+    avatar_key: Optional[str] = None
 
     if avatar:
-        if not avatar.content_type.startswith("image/"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must be an image"
-            )
-
-        file_ext = Path(avatar.filename).suffix
-        file_name = f"{uuid.uuid4()}{file_ext}"
-        saved_file_path = UPLOAD_DIR / file_name
-
         content = await avatar.read()
-        async with aiofiles.open(saved_file_path, "wb") as f:
-            await f.write(content)
+        _validate_avatar(avatar, content)
 
-        avatar_path = f"{settings.BASE_URL}/static/avatars/{file_name}"
-
+        avatar_key = await asyncio.to_thread(
+            storage_service.upload_avatar, content, current_user.id, avatar.content_type
+        )
     try:
         profile = UserProfileModel(
             user_id=current_user.id,
-            avatar=avatar_path,
+            avatar=avatar_key,
             **profile_data.model_dump()
         )
         db.add(profile)
@@ -97,15 +108,19 @@ async def create_user_profile(
     except SQLAlchemyError as e:
         await db.rollback()
 
-        if saved_file_path and await aiofiles.os.path.exists(saved_file_path):
-            await aiofiles.os.remove(saved_file_path)
+        if avatar_key:
+            await asyncio.to_thread(storage_service.delete_avatar, avatar_key)
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Something went wrong during profile creation. Please try again later"
         ) from e
 
-    return profile
+    avatar_url = None
+    if profile.avatar:
+        avatar_url = await asyncio.to_thread(storage_service.get_avatar_url, profile.avatar)
+
+    return _build_profile_response(profile, avatar_url)
 
 
 
@@ -123,7 +138,12 @@ async def get_user_profile(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You have no profile yet. Try creating profile visiting /profile/create/ endpoint"
         )
-    return user_profile
+
+    avatar_url = None
+    if user_profile.avatar:
+        avatar_url = await asyncio.to_thread(storage_service.get_avatar_url, user_profile.avatar)
+
+    return _build_profile_response(user_profile, avatar_url)
 
 
 @router.patch("/update/", response_model=UserProfileResponse, status_code=status.HTTP_200_OK)
@@ -147,10 +167,6 @@ async def update_user_profile(
             detail="You don't have a profile yet"
         )
 
-    old_avatar_path_to_delete: Optional[Path] = None
-    if profile.avatar:
-        old_avatar_path_to_delete = UPLOAD_DIR / Path(str(profile.avatar)).name
-
     try:
         update_data = UserProfileUpdateSchema(
             first_name=first_name,
@@ -170,41 +186,42 @@ async def update_user_profile(
         if value is not None:
             setattr(profile, key, value)
 
-    new_file_path: Optional[Path] = None
+    old_avatar_key: Optional[str] = None
+    new_avatar_key: Optional[str] = None
 
     if avatar:
-        if not avatar.content_type.startswith("image/"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must be an image"
-            )
-
-        file_ext = Path(avatar.filename).suffix
-        file_name = f"{uuid.uuid4()}{file_ext}"
-
-        file_path = UPLOAD_DIR / file_name
-
         content = await avatar.read()
-        async with aiofiles.open(file_path, "wb") as f:
-            await f.write(content)
+        _validate_avatar(avatar, content)
 
-        profile.avatar = f"{settings.BASE_URL}/static/avatars/{file_name}"
+        old_avatar_key = profile.avatar
+        new_avatar_key = await asyncio.to_thread(
+            storage_service.upload_avatar, content, current_user.id, avatar.content_type
+        )
+        profile.avatar = new_avatar_key
 
     try:
         await db.commit()
         await db.refresh(profile)
 
-        if old_avatar_path_to_delete and await aiofiles.os.path.exists(old_avatar_path_to_delete):
-            await aiofiles.os.remove(old_avatar_path_to_delete)
+        if old_avatar_key:
+            await asyncio.to_thread(storage_service.delete_avatar, old_avatar_key)
 
     except SQLAlchemyError as e:
         await db.rollback()
+
+        if new_avatar_key:
+            await asyncio.to_thread(storage_service.delete_avatar, new_avatar_key)
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Something went wrong. Try again later"
         ) from e
 
-    return profile
+    avatar_url = None
+    if profile.avatar:
+        avatar_url = await asyncio.to_thread(storage_service.get_avatar_url, profile.avatar)
+
+    return _build_profile_response(profile, avatar_url)
 
 
 @router.delete("/delete/", response_model=MessageResponseSchema)
@@ -235,7 +252,7 @@ async def delete_user_profile(user_data: UserDeleteRequestSchema,
             detail="You don't have a profile yet"
         )
 
-    avatar_value = profile.avatar
+    avatar_key = profile.avatar
 
 
     try:
@@ -249,15 +266,7 @@ async def delete_user_profile(user_data: UserDeleteRequestSchema,
             detail="Something went wrong. Please try again later"
         ) from e
 
-    if avatar_value:
-        file_path = (UPLOAD_DIR / Path(avatar_value).name).resolve()
-
-        if UPLOAD_DIR in file_path.parents and file_path.is_file():
-            await asyncio.to_thread(file_path.unlink, missing_ok=True)
-
+    if avatar_key:
+        await asyncio.to_thread(storage_service.delete_avatar, avatar_key)
 
     return MessageResponseSchema(message="Profile successfully deleted")
-
-
-
-
