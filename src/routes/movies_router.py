@@ -34,12 +34,6 @@ from src.database.models.movie_interactions import (MoviePurchase,
 from src.database.session import get_db
 router = APIRouter()
 
-
-@router.get("/")
-async def get_movies():
-    # TODO: GET EVERYTHING DONE
-    return {"message": "Coming soon"}
-
 @router.get("/movies/", response_model=MovieListResponseSchema)
 async def get_movie_list(request: Request,
                          db: AsyncSession = Depends(get_db),
