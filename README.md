@@ -1,4 +1,4 @@
-#  Online Cinema
+# Online Cinema
 
 **Online Cinema** is a backend platform for an online movie theater that lets users register, browse a movie catalog, add movies to favorites and cart, place orders, and pay for purchases online. The project is implemented as a REST API on **FastAPI** and follows a modular architecture with a clear separation of domains: accounts, movies, shopping cart, orders, and payments.
 
@@ -36,7 +36,7 @@ The project is split into five core modules:
 
 ---
 
-##  Features
+## Features
 
 ### 1. Accounts and Authorization
 
@@ -50,6 +50,7 @@ The project is split into five core modules:
 - Password complexity validation.
 - Three user groups with different access levels: **User**, **Moderator**, **Admin**.
 - Admins can change a user's group and manually activate accounts.
+- Avatar storage via **MinIO** (S3-compatible object storage), served through temporary presigned URLs.
 
 ### 2. Movies
 
@@ -94,7 +95,7 @@ The project is split into five core modules:
 
 ---
 
-##  Tech Stack
+## Tech Stack
 
 | Category | Technologies |
 |---|---|
@@ -106,6 +107,7 @@ The project is split into five core modules:
 | File Storage | MinIO (S3-compatible) |
 | Payments | Stripe |
 | Authentication | JWT (access/refresh tokens) |
+| Dependency Management | Poetry |
 | Containerization | Docker, Docker Compose |
 | API Documentation | Swagger / OpenAPI 3.0+ |
 | CI/CD | GitHub Actions |
@@ -113,7 +115,7 @@ The project is split into five core modules:
 
 ---
 
-##  Project Structure
+## Project Structure
 
 ```
 Online-Cinema-Project/
@@ -125,21 +127,22 @@ Online-Cinema-Project/
 │   │   └── migrations/        # Alembic migration versions
 │   ├── routers/               # API endpoints by domain
 │   ├── schemas/                # Pydantic schemas
-│   ├── services/                # Business logic (email, JWT, Stripe, etc.)
+│   ├── services/                # Business logic (email, JWT, Stripe, MinIO storage, etc.)
 │   └── main.py                  # FastAPI application entry point
 ├── .env.sample               # Sample environment variables file
 ├── .gitignore
-├── Dockerfile                 # Application Docker image
+├── Dockerfile                 # Application Docker image (installs dependencies via Poetry)
 ├── docker-compose.yml         # Service orchestration (FastAPI, PostgreSQL, Redis, Celery, MinIO)
 ├── entrypoint.sh               # Container startup script
 ├── alembic.ini                  # Alembic configuration
-├── requirements.txt              # Project dependencies
+├── pyproject.toml                # Project dependencies and configuration (Poetry)
+├── poetry.lock                    # Locked dependency versions (Poetry)
 └── README.md
 ```
 
 ---
 
-##  Database Schema
+## Database Schema
 
 The project uses five logical groups of tables:
 
@@ -163,12 +166,12 @@ Key relationships:
 
 ---
 
-##  Installation and Running
+## Installation and Running
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- Python 3.11+ (for local development without containers)
+- Python 3.12+ and [Poetry](https://python-poetry.org/docs/#installation) (for local development without containers)
 
 ### Running with Docker Compose
 
@@ -182,28 +185,44 @@ cp .env.sample .env
 docker compose up --build
 ```
 
-This command starts all required services: **FastAPI**, **PostgreSQL**, **Redis**, **Celery worker**, **Celery Beat**, and **MinIO**.
+This command starts all required services: **FastAPI**, **PostgreSQL**, **Redis**, **Celery worker**, **Celery Beat**, **MinIO**, and **MailHog**. Dependencies inside the `app`, `celery_worker`, and `celery_beat` images are installed via **Poetry** from `pyproject.toml`/`poetry.lock`.
 
 The application will be available at: `http://localhost:8000`
 
-### Running Locally without Docker
+### Running Locally with Poetry (without Docker)
+
+Poetry manages the virtual environment for you — there is no need to manually create or activate one.
 
 ```bash
-python -m venv venv
-source venv/bin/activate      # on Windows: venv\Scripts\activate
+git clone https://github.com/Dolteriska/Online-Cinema-Project.git
+cd Online-Cinema-Project
 
-pip install -r requirements.txt
+# Installs dependencies and creates/manages the virtual environment automatically
+poetry install
 
 cp .env.sample .env
-# fill in the environment variables
+# fill in the environment variables (point DB/Redis/MinIO hosts to localhost)
 
-alembic upgrade head
-uvicorn src.main:app --reload
+poetry run alembic upgrade head
+poetry run uvicorn src.main:app --reload
 ```
+
+Useful Poetry commands for day-to-day development:
+
+```bash
+poetry add <package>                 # add a new runtime dependency
+poetry add --group dev <package>     # add a new dev-only dependency (tests, linters, etc.)
+poetry install                       # install/sync all dependencies from poetry.lock
+poetry lock                          # regenerate poetry.lock after editing pyproject.toml
+poetry run <command>                 # run any command inside the managed virtual environment
+poetry shell                         # activate the virtual environment in the current terminal
+```
+
+> **Note:** Running the app fully locally without Docker also requires PostgreSQL, Redis, and MinIO to be available (either installed locally or run separately via `docker compose up db redis minio mailhog`).
 
 ---
 
-##  Environment Variables
+## Environment Variables
 
 The full list of variables is in `.env.sample`. Main configuration groups:
 
@@ -212,28 +231,33 @@ The full list of variables is in `.env.sample`. Main configuration groups:
 - **JWT** settings (secret keys, access/refresh token lifetimes).
 - Mail server settings for sending activation and password reset emails.
 - **Stripe** keys for payment processing.
-- **MinIO** (S3) connection settings for storing avatars and other files.
+- **MinIO** (S3) connection settings for storing avatars and other files (`MINIO_ENDPOINT_INTERNAL`, `MINIO_ENDPOINT_PUBLIC`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET_NAME`).
 
 ---
 
-##  Database Migrations
+## Database Migrations
 
 The project uses **Alembic** to manage the database schema.
 
 ```bash
 # Create a new migration
-alembic revision --autogenerate -m "description of changes"
+poetry run alembic revision --autogenerate -m "description of changes"
 
 # Apply migrations
-alembic upgrade head
+poetry run alembic upgrade head
 
 # Roll back the last migration
-alembic downgrade -1
+poetry run alembic downgrade -1
+```
+
+Inside Docker, the same commands are available via:
+```bash
+docker compose exec app alembic upgrade head
 ```
 
 ---
 
-##  API Documentation (work in progress)
+## API Documentation (work in progress)
 
 Once the application is running, interactive documentation is available at:
 
@@ -249,8 +273,13 @@ Access to the documentation is restricted and available only to authorized users
 Tests are run with **Pytest**:
 
 ```bash
-pytest
-pytest --cov=src        # with a coverage report
+poetry run pytest
+poetry run pytest --cov=src        # with a coverage report
+```
+
+Inside Docker:
+```bash
+docker compose exec app pytest
 ```
 
 Test coverage includes:
@@ -261,19 +290,18 @@ Test coverage includes:
 
 ---
 
-##  CI/CD (work in progress)
+## CI/CD (work in progress)
 
 Automation is configured via **GitHub Actions** and includes:
 
+- Dependency installation via **Poetry**.
 - Code style checks (`flake8` / `black`).
 - Type checking (`mypy`).
 - Running tests (`pytest`) with a coverage report.
 - Automatic deployment to **AWS EC2** after all checks pass and a pull request is merged into the main branch.
 
-- 
-
 ---
 
-##  Author
+## Author
 
 The project was developed by [Dolteriska](https://github.com/Dolteriska) as part of an educational project for building a backend platform for an online cinema.
