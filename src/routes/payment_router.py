@@ -43,9 +43,12 @@ async def create_checkout(
     ###  Business Logic Workflow:
     1. **Order Validation:** Ensures the order exists and belongs to the authenticated user.
     2. **Item Check:** Verifies that the order contains at least one item.
-    3. **Ownership Verification:** Checks if the user already owns any of the movies in this order. If any movie is already purchased, the transaction is rejected.
-    4. **Price Recalculation:** Calculates the precise total price (`price_at_order`), rounded to 2 decimal places (`ROUND_HALF_UP`), ensuring order amount validity ($> 0$).
-    5. **Order Synchronization:** Automatically updates the order's `total_amount` in the database if recalculation differs.
+    3. **Ownership Verification:** Checks if the user already owns any of the movies
+    in this order. If any movie is already purchased, the transaction is rejected.
+    4. **Price Recalculation:** Calculates the precise total price
+     (`price_at_order`), rounded to 2 decimal places (`ROUND_HALF_UP`), ensuring order amount validity ($> 0$).
+    5. **Order Synchronization:** Automatically updates the order's
+     `total_amount` in the database if recalculation differs.
     6. **Stripe Integration:** Calls Stripe API to generate a unique hosted checkout session URL.
 
     ###  Side Effects:
@@ -143,7 +146,8 @@ async def create_checkout(
 
 @router.post("/webhook", status_code=status.HTTP_200_OK,
              summary="Stripe Webhook Listener",
-             description="Processes asynchronous payment events sent by Stripe (checkout completion, failures, expirations).")
+             description="Processes asynchronous payment events sent by Stripe"
+                         " (checkout completion, failures, expirations).")
 async def stripe_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db)
@@ -162,7 +166,8 @@ async def stripe_webhook(
            - Validates that the order exists and is not currently marked as `PAID`.
            - Creates a `Payment` record with status `SUCCESSFUL` and links `external_payment_id`.
            - Updates `Order.status` to `PAID`.
-           - Iterates over order items to create `PaymentItem` entries and provision `MoviePurchase` rights (prevents duplicates).
+           - Iterates over order items to create `PaymentItem` entries and provision
+            `MoviePurchase` rights (prevents duplicates).
            - Triggers asynchronous background task (`send_payment_confirmation_email`) via Celery.
 
         2. `payment_intent.payment_failed` / `checkout.session.expired`:
@@ -174,7 +179,8 @@ async def stripe_webhook(
         * Dispatches an asynchronous email job to Celery broker.
 
         ### Responses:
-        * **200 OK**: Event processed or ignored (unhandled event types return 200 to prevent unnecessary Stripe webhooks retries).
+        * **200 OK**: Event processed or ignored (unhandled event types return 200
+         to prevent unnecessary Stripe webhooks retries).
         * **400 Bad Request**: Failed payload validation or signature mismatch.
         """
     payload = await request.body()
