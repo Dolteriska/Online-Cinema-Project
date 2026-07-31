@@ -48,6 +48,7 @@ flake8 = "^7.3.0"
 mypy = "^2.3.0"
 aiosqlite = "^0.22.1"
 testcontainers = {extras = ["postgresql"], version = "^4.15.0"}
+pytest-cov = "^7.1.0"
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
