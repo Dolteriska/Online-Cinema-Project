@@ -17,8 +17,8 @@ Repository: [Dolteriska/Online-Cinema-Project](https://github.com/Dolteriska/Onl
 - [Environment Variables](#environment-variables)
 - [Database Migrations](#database-migrations)
 - [API Documentation](#api-documentation-work-in-progress)
-- [Testing](#testing-work-in-progress)
-- [CI/CD](#cicd-work-in-progress)
+- [Testing](#testing)
+- [CI/CD](#cicd-planned)
 
 ---
 
@@ -119,24 +119,46 @@ The project is split into five core modules:
 
 ```
 Online-Cinema-Project/
-├── alembic/                # Database migrations
-├── src/                    # Application source code (FastAPI)
-│   ├── config/              # Settings and dependencies
-│   ├── database/             # Models, DB connection
-│   │   ├── models/            # SQLAlchemy models (accounts, movies, cart, orders, payments)
-│   │   └── migrations/        # Alembic migration versions
-│   ├── routers/               # API endpoints by domain
-│   ├── schemas/                # Pydantic schemas
-│   ├── services/                # Business logic (email, JWT, Stripe, MinIO storage, etc.)
-│   └── main.py                  # FastAPI application entry point
-├── .env.sample               # Sample environment variables file
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # CI pipeline (lint, type-check, tests)
+├── alembic/                     # Database migrations
+├── src/                          # Application source code (FastAPI)
+│   ├── config/                    # Settings and dependencies
+│   ├── database/                   # Models, DB connection
+│   ├── exceptions/                  # Custom exception classes
+│   ├── routes/                       # API endpoints by domain
+│   ├── schemas/                       # Pydantic schemas
+│   ├── security/                       # JWT, hashing, permissions
+│   ├── services/                        # Business logic (email, storage, etc.)
+│   ├── stripe/                           # Stripe payment integration
+│   ├── tasks/                             # Celery tasks
+│   ├── __init__.py
+│   ├── celery_app.py                       # Celery application setup
+│   └── main.py                              # FastAPI application entry point
+├── tests/                        # Test suite
+│   ├── functional/                 # End-to-end user journey tests
+│   │   └── test_user_journey.py
+│   ├── integration/                 # Endpoint + DB integration tests
+│   │   ├── test_admin_access.py
+│   │   ├── test_auth.py
+│   │   ├── test_cart_and_orders.py
+│   │   └── test_movies.py
+│   ├── unit/                          # Unit tests (schemas, security, validators)
+│   │   ├── test_schemas_validation.py
+│   │   ├── test_security.py
+│   │   └── test_validators.py
+│   ├── conftest.py                     # Shared pytest fixtures
+│   └── factories.py                     # Test data factories
+├── .env.sample                   # Sample environment variables file
+├── .flake8                        # Flake8 configuration
 ├── .gitignore
-├── Dockerfile                 # Application Docker image (installs dependencies via Poetry)
-├── docker-compose.yml         # Service orchestration (FastAPI, PostgreSQL, Redis, Celery, MinIO)
-├── entrypoint.sh               # Container startup script
-├── alembic.ini                  # Alembic configuration
-├── pyproject.toml                # Project dependencies and configuration (Poetry)
-├── poetry.lock                    # Locked dependency versions (Poetry)
+├── Dockerfile                      # Application Docker image (installs deps via Poetry)
+├── docker-compose.yml                # Service orchestration (FastAPI, PostgreSQL, Redis, Celery, MinIO)
+├── entrypoint.sh                      # Container startup script
+├── alembic.ini                         # Alembic configuration
+├── pyproject.toml                       # Project dependencies and configuration (Poetry)
+├── poetry.lock                           # Locked dependency versions
 └── README.md
 ```
 
@@ -185,19 +207,19 @@ cp .env.sample .env
 docker compose up --build
 ```
 
-This command starts all required services: **FastAPI**, **PostgreSQL**, **Redis**, **Celery worker**, **Celery Beat**, **MinIO**, and **MailHog**. Dependencies inside the `app`, `celery_worker`, and `celery_beat` images are installed via **Poetry** from `pyproject.toml`/`poetry.lock`.
+This command starts all required services: **FastAPI**, **PostgreSQL**, **Redis**, **Celery worker**, **Celery Beat**, **MinIO**, and **MailHog**.
+Database migrations are applied automatically on container start via `entrypoint.sh` — no manual `alembic upgrade head` step is needed here.
 
 The application will be available at: `http://localhost:8000`
 
 ### Running Locally with Poetry (without Docker)
 
-Poetry manages the virtual environment for you — there is no need to manually create or activate one.
+Poetry manages the virtual environment for you automatically.
 
 ```bash
 git clone https://github.com/Dolteriska/Online-Cinema-Project.git
 cd Online-Cinema-Project
 
-# Installs dependencies and creates/manages the virtual environment automatically
 poetry install
 
 cp .env.sample .env
@@ -205,17 +227,6 @@ cp .env.sample .env
 
 poetry run alembic upgrade head
 poetry run uvicorn src.main:app --reload
-```
-
-Useful Poetry commands for day-to-day development:
-
-```bash
-poetry add <package>                 # add a new runtime dependency
-poetry add --group dev <package>     # add a new dev-only dependency (tests, linters, etc.)
-poetry install                       # install/sync all dependencies from poetry.lock
-poetry lock                          # regenerate poetry.lock after editing pyproject.toml
-poetry run <command>                 # run any command inside the managed virtual environment
-poetry shell                         # activate the virtual environment in the current terminal
 ```
 
 > **Note:** Running the app fully locally without Docker also requires PostgreSQL, Redis, and MinIO to be available (either installed locally or run separately via `docker compose up db redis minio mailhog`).
@@ -238,6 +249,8 @@ The full list of variables is in `.env.sample`. Main configuration groups:
 ## Database Migrations
 
 The project uses **Alembic** to manage the database schema.
+
+> In the Docker Compose setup, migrations run automatically on every container start via `entrypoint.sh`. The commands below are for manual use (local development without Docker, or creating new migrations).
 
 ```bash
 # Create a new migration
@@ -268,7 +281,7 @@ Access to the documentation is restricted and available only to authorized users
 
 ---
 
-## Testing (work in progress)
+## Testing
 
 Tests are run with **Pytest**:
 
@@ -290,12 +303,12 @@ Test coverage includes:
 
 ---
 
-## CI/CD (work in progress)
+## CI/CD (planned)
 
 Automation is configured via **GitHub Actions** and includes:
 
 - Dependency installation via **Poetry**.
-- Code style checks (`flake8` / `black`).
+- Code style checks (`flake8`).
 - Type checking (`mypy`).
 - Running tests (`pytest`) with a coverage report.
 - Automatic deployment to **AWS EC2** after all checks pass and a pull request is merged into the main branch.
