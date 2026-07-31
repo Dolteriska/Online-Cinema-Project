@@ -19,7 +19,7 @@ dependencies = [
     "email-validator (>=2.3.0,<3.0.0)",
     "python-jose (>=3.5.0,<4.0.0)",
     "passlib (>=1.7.4,<2.0.0)",
-    "bcrypt (>=5.0.0,<6.0.0)",
+    "bcrypt (<4.1.0)",
     "celery (>=5.6.3,<6.0.0)",
     "redis (>=8.1.0,<9.0.0)",
     "celery-pool-asyncio (>=0.2.0,<0.3.0)",
@@ -29,7 +29,6 @@ dependencies = [
     "aiofiles (>=25.1.0,<26.0.0)",
     "aiosmtplib (>=5.1.2,<6.0.0)"
 ]
-
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -42,10 +41,46 @@ dev = [
     "pytest-asyncio (>=1.4.0,<2.0.0)",
     "black (>=26.5.1,<27.0.0)",
     "flake8 (>=7.3.0,<8.0.0)",
-    "mypy  (>=2.3.0)"
-
+    "mypy (>=2.3.0)"
 ]
 
 [tool.poetry]
 package-mode = false
+
+
+[tool.poetry.group.dev.dependencies]
+aiosqlite = "^0.22.1"
+testcontainers = {extras = ["postgresql"], version = "^4.15.0"}
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+exclude = [
+    "^\\.venv/",
+    "^venv/",
+    "^alembic/versions/",
+    "^__pycache__/"
+]
+warn_unused_ignores = true
+warn_return_any = false
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+
+[[tool.mypy.overrides]]
+module = [
+    "celery.*",
+    "boto3.*",
+    "botocore.*",
+    "jose.*",
+    "passlib.*"
+]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
 
