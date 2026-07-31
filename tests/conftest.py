@@ -70,8 +70,7 @@ os.environ.setdefault("MINIO_BUCKET_NAME", "test-bucket")
 # Patch REDIS_URL to use in-memory limiter storage in tests —
 # no real Redis is spun up for the test suite.
 from src.config.settings import Settings  # noqa: E402
-# noinspection PyPropertyAccess
-Settings.REDIS_URL = property(lambda self: "memory://")
+Settings.REDIS_URL = property(lambda self: "memory://") # noqa
 
 os.environ.setdefault("REDIS_URL", "memory://")  # can leave or remove, no longer load-bearing
 
