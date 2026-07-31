@@ -51,6 +51,7 @@ The project is split into five core modules:
 - Three user groups with different access levels: **User**, **Moderator**, **Admin**.
 - Admins can change a user's group and manually activate accounts.
 - Avatar storage via **MinIO** (S3-compatible object storage), served through temporary presigned URLs.
+- Rate limiting for endpoints which don't require to be authorized (base rate limit is 100 requests/minute)
 
 ### 2. Movies
 
@@ -143,6 +144,7 @@ Online-Cinema-Project/
 │   │   ├── test_admin_access.py
 │   │   ├── test_auth.py
 │   │   ├── test_cart_and_orders.py
+│   │    ├── test_rate_limiting.py
 │   │   └── test_movies.py
 │   ├── unit/                          # Unit tests (schemas, security, validators)
 │   │   ├── test_schemas_validation.py
