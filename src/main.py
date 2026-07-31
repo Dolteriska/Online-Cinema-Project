@@ -15,12 +15,19 @@ from src.routes import (auth_router,
                         payment_router,
                         payment_admin_router)
 from src.celery_app import celery_app # noqa
+from slowapi import _rate_limit_exceeded_handler # noqa
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from src.config.limiter import limiter
+
 
 app = FastAPI(
     title="Online Cinema Project",
     description="Description of project"
 )
-
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 @app.get("/health")
 def health():
