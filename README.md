@@ -4,6 +4,8 @@
 
 Repository: [Dolteriska/Online-Cinema-Project](https://github.com/Dolteriska/Online-Cinema-Project)
 
+Deployed on AWS EC2 with Docker Compose — [[demo link](http://63.180.139.188:8000)] (may be temporarily offline outside active development)
+
 ---
 
 ## Table of Contents
@@ -18,7 +20,7 @@ Repository: [Dolteriska/Online-Cinema-Project](https://github.com/Dolteriska/Onl
 - [Database Migrations](#database-migrations)
 - [API Documentation](#api-documentation-work-in-progress)
 - [Testing](#testing)
-- [CI/CD](#cicd-planned)
+- [CI/CD](#cicd)
 
 ---
 
@@ -305,7 +307,7 @@ Test coverage includes:
 
 ---
 
-## CI/CD (planned)
+## CI/CD
 
 Automation is configured via **GitHub Actions** and includes:
 
