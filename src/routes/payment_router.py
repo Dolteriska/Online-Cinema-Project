@@ -29,12 +29,38 @@ STRIPE_WEBHOOK_SECRET = environ.get("STRIPE_WEBHOOK_SECRET")
 router = APIRouter()
 
 
-@router.post("/checkout/{order_id}/")
+@router.post("/checkout/{order_id}/",
+             summary="Create Stripe Checkout Session",
+             )
 async def create_checkout(
     order_id: int,
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    Create a Stripe Hosted Checkout Session for an existing user order.
+
+    ###  Business Logic Workflow:
+    1. **Order Validation:** Ensures the order exists and belongs to the authenticated user.
+    2. **Item Check:** Verifies that the order contains at least one item.
+    3. **Ownership Verification:** Checks if the user already owns any of the movies in this order. If any movie is already purchased, the transaction is rejected.
+    4. **Price Recalculation:** Calculates the precise total price (`price_at_order`), rounded to 2 decimal places (`ROUND_HALF_UP`), ensuring order amount validity ($> 0$).
+    5. **Order Synchronization:** Automatically updates the order's `total_amount` in the database if recalculation differs.
+    6. **Stripe Integration:** Calls Stripe API to generate a unique hosted checkout session URL.
+
+    ###  Side Effects:
+    * Updates `order.total_amount` in the database if there is a discrepancy.
+    * Generates external redirect URLs for successful/canceled payments.
+
+    ###  Possible Errors & HTTP Status Codes:
+    * **400 Bad Request:**
+      * Order is empty.
+      * One or more movies in the order are already purchased by the user.
+      * Total order price is equal to or less than zero.
+    * **401 Unauthorized:** User is not authenticated.
+    * **404 Not Found:** Order does not exist or does not belong to the current user.
+    * **502 Bad Gateway:** Failed to communicate with Stripe payment gateway.
+    """
     stmt = (
         select(Order)
         .where(Order.id == order_id, Order.user_id == current_user.id)
@@ -115,11 +141,42 @@ async def create_checkout(
     }
 
 
-@router.post("/webhook", status_code=status.HTTP_200_OK)
+@router.post("/webhook", status_code=status.HTTP_200_OK,
+             summary="Stripe Webhook Listener",
+             description="Processes asynchronous payment events sent by Stripe (checkout completion, failures, expirations).")
 async def stripe_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
+    """
+        Handle incoming Stripe webhook events to synchronize payment statuses and grant user access.
+
+        ### Security & Validation:
+        * Verifies the raw request body against the `Stripe-Signature` header using `STRIPE_WEBHOOK_SECRET`.
+        * Aborts execution with `HTTP 400` if payload construction fails or signature is invalid.
+
+        ### Handled Events & Business Logic:
+
+        1. `checkout.session.completed`:
+           - Extracts `order_id` from event metadata.
+           - Validates that the order exists and is not currently marked as `PAID`.
+           - Creates a `Payment` record with status `SUCCESSFUL` and links `external_payment_id`.
+           - Updates `Order.status` to `PAID`.
+           - Iterates over order items to create `PaymentItem` entries and provision `MoviePurchase` rights (prevents duplicates).
+           - Triggers asynchronous background task (`send_payment_confirmation_email`) via Celery.
+
+        2. `payment_intent.payment_failed` / `checkout.session.expired`:
+           - Extracts `order_id` from metadata.
+           - Creates a `Payment` record with status `CANCELED` if the order is not already marked as `PAID`.
+
+        ### Side Effects:
+        * Mutates `Order` and inserts `Payment`, `PaymentItem`, `MoviePurchase` records into DB.
+        * Dispatches an asynchronous email job to Celery broker.
+
+        ### Responses:
+        * **200 OK**: Event processed or ignored (unhandled event types return 200 to prevent unnecessary Stripe webhooks retries).
+        * **400 Bad Request**: Failed payload validation or signature mismatch.
+        """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
