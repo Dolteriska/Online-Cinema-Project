@@ -67,6 +67,14 @@ os.environ.setdefault("MINIO_ACCESS_KEY", "test-access-key")
 os.environ.setdefault("MINIO_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("MINIO_BUCKET_NAME", "test-bucket")
 
+# Patch REDIS_URL to use in-memory limiter storage in tests —
+# no real Redis is spun up for the test suite.
+from src.config.settings import Settings  # noqa: E402
+# noinspection PyPropertyAccess
+Settings.REDIS_URL = property(lambda self: "memory://")
+
+os.environ.setdefault("REDIS_URL", "memory://")  # can leave or remove, no longer load-bearing
+
 # --- 2. Patch boto3.client BEFORE src.services.storage is ever imported ---
 import boto3  # noqa: E402
 
