@@ -1,28 +1,18 @@
-from typing import List, Optional
 from sqlalchemy import (
     ForeignKey,
-    String,
-    Float,
     Integer,
-    Text,
     UniqueConstraint,
-    Table,
-    Column,
-    Uuid,
-    Numeric,
     DateTime,
-    func
-)
+    func)
 from datetime import datetime
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
-    relationship,
-)
+    relationship)
+
 from src.database.base import Base
 from src.database.models import Movie
 from src.database.models.users import UserModel
-
 
 
 class Cart(Base):
@@ -44,7 +34,6 @@ class Cart(Base):
         back_populates="cart",
         cascade="all, delete-orphan"
     )
-
 
 
 class CartItem(Base):
@@ -79,4 +68,3 @@ class CartItem(Base):
         "Movie",
         back_populates="in_cart"
     )
-

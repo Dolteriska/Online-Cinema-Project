@@ -1,14 +1,11 @@
 from typing import Optional
-
 from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from decimal import Decimal
 
-
 from src.database.models.movies import (Movie,
-                                        Certification,
                                         Genre,
                                         Star,
                                         Director,
@@ -17,9 +14,7 @@ from src.database.models.movies import (Movie,
                                         movie_stars)
 from src.schemas.movies_schema import (MovieResponseSchema,
                                        MovieListResponseSchema,
-                                       GenreResponse,
                                        StarResponse,
-                                       MovieShortResponseSchema,
                                        StarWithMoviesResponse,
                                        MovieDetailResponseSchema,
                                        DirectorResponse,
@@ -33,6 +28,7 @@ from src.database.models.movie_interactions import (MoviePurchase,
 
 from src.database.session import get_db
 router = APIRouter()
+
 
 @router.get("/movies/", response_model=MovieListResponseSchema)
 async def get_movie_list(request: Request,
@@ -61,7 +57,8 @@ async def get_movie_list(request: Request,
         base_stmt = base_stmt.filter(Movie.name.ilike(f"%{title.strip()}%"))
 
     if description:
-        base_stmt = base_stmt.filter(Movie.description.ilike(f"%{description.strip()}%"))
+        base_stmt = base_stmt.filter(
+            Movie.description.ilike(f"%{description.strip()}%"))
 
     if actor:
         actor_subq = (
@@ -99,7 +96,8 @@ async def get_movie_list(request: Request,
             detail="min_imdb cannot be greater than max_imdb"
         )
 
-    if min_price is not None and max_price is not None and min_price > max_price:
+    if (min_price is not None and
+            max_price is not None and min_price > max_price):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="min_price cannot be greater than max_price"
@@ -118,14 +116,16 @@ async def get_movie_list(request: Request,
     if max_price is not None:
         base_stmt = base_stmt.filter(Movie.price <= max_price)
     if certification_id is not None:
-        base_stmt = base_stmt.filter(Movie.certification_id == certification_id)
+        base_stmt = base_stmt.filter(Movie.certification_id
+                                     == certification_id)
 
     if genre_ids:
         genre_subq = (
             select(movie_genres.c.movie_id)
             .where(movie_genres.c.genre_id.in_(genre_ids))
             .group_by(movie_genres.c.movie_id)
-            .having(func.count(func.distinct(movie_genres.c.genre_id)) == len(genre_ids))
+            .having(func.count(func.distinct(movie_genres.c.genre_id))
+                    == len(genre_ids))
         )
         base_stmt = base_stmt.where(Movie.id.in_(genre_subq))
 
@@ -134,7 +134,8 @@ async def get_movie_list(request: Request,
             select(movie_stars.c.movie_id)
             .where(movie_stars.c.star_id.in_(star_ids))
             .group_by(movie_stars.c.movie_id)
-            .having(func.count(func.distinct(movie_stars.c.star_id)) == len(star_ids))
+            .having(func.count(func.distinct(movie_stars.c.star_id))
+                    == len(star_ids))
         )
         base_stmt = base_stmt.where(Movie.id.in_(star_subq))
 
@@ -143,7 +144,9 @@ async def get_movie_list(request: Request,
             select(movie_directors.c.movie_id)
             .where(movie_directors.c.director_id.in_(director_ids))
             .group_by(movie_directors.c.movie_id)
-            .having(func.count(func.distinct(movie_directors.c.director_id)) == len(director_ids))
+            .having(func.count(
+                func.distinct(movie_directors.c.director_id))
+                    == len(director_ids))
         )
         base_stmt = base_stmt.where(Movie.id.in_(director_subq))
 
@@ -170,13 +173,15 @@ async def get_movie_list(request: Request,
 
     if sort == MovieSortBy.popularity:
         purchases_sub = (
-            select(MoviePurchase.movie_id, func.count(MoviePurchase.id).label("p_count"))
+            select(MoviePurchase.movie_id,
+                   func.count(MoviePurchase.id).label("p_count"))
             .group_by(MoviePurchase.movie_id)
             .subquery()
         )
 
         favorites_sub = (
-            select(FavoriteMovie.movie_id, func.count(FavoriteMovie.id).label("f_count"))
+            select(FavoriteMovie.movie_id,
+                   func.count(FavoriteMovie.id).label("f_count"))
             .group_by(FavoriteMovie.movie_id)
             .subquery()
         )
@@ -213,8 +218,12 @@ async def get_movie_list(request: Request,
     next_offset = offset + limit
     previous_offset = max(offset - limit, 0)
 
-    next_url = str(request.url.include_query_params(limit=limit, offset=next_offset)) if next_offset < total else None
-    previous_url = str(request.url.include_query_params(limit=limit, offset=previous_offset)) if offset > 0 else None
+    next_url = str(request.url.include_query_params(
+        limit=limit,
+        offset=next_offset)) if next_offset < total else None
+    previous_url = str(request.url.include_query_params(
+        limit=limit,
+        offset=previous_offset)) if offset > 0 else None
 
     return MovieListResponseSchema(
         items=[MovieResponseSchema.model_validate(movie) for movie in movies],
@@ -251,7 +260,9 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_db)):
     return movie
 
 
-@router.get("/genres/", response_model=list[GenreWithCountResponse], status_code=status.HTTP_200_OK)
+@router.get("/genres/",
+            response_model=list[GenreWithCountResponse],
+            status_code=status.HTTP_200_OK)
 async def get_genre_list(db: AsyncSession = Depends(get_db)):
     stmt = (
         select(Genre.id,
@@ -274,7 +285,10 @@ async def get_genre_list(db: AsyncSession = Depends(get_db)):
 
     return genres
 
-@router.get("/genres/{genre_id}/", response_model=GenreWithMoviesResponse, status_code=status.HTTP_200_OK)
+
+@router.get("/genres/{genre_id}/",
+            response_model=GenreWithMoviesResponse,
+            status_code=status.HTTP_200_OK)
 async def get_genre_detail(genre_id: int, db: AsyncSession = Depends(get_db)):
     stmt = (
         select(Genre)
@@ -291,7 +305,10 @@ async def get_genre_detail(genre_id: int, db: AsyncSession = Depends(get_db)):
         )
     return genre
 
-@router.get("/stars/", response_model=list[StarResponse], status_code=status.HTTP_200_OK)
+
+@router.get("/stars/",
+            response_model=list[StarResponse],
+            status_code=status.HTTP_200_OK)
 async def get_star_list(db: AsyncSession = Depends(get_db)):
     stmt = select(Star).options(selectinload(Star.movies))
     result = await db.execute(stmt)
@@ -299,13 +316,17 @@ async def get_star_list(db: AsyncSession = Depends(get_db)):
     stars = result.scalars().all()
 
     if not stars:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No stars were found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="No stars were found")
 
     return stars
 
 
-@router.get("/stars/{star_id}/", response_model=StarWithMoviesResponse, status_code=status.HTTP_200_OK)
-async def get_star_with_movies(star_id: int, db: AsyncSession = Depends(get_db)):
+@router.get("/stars/{star_id}/",
+            response_model=StarWithMoviesResponse,
+            status_code=status.HTTP_200_OK)
+async def get_star_with_movies(star_id: int,
+                               db: AsyncSession = Depends(get_db)):
     stmt = (
         select(Star)
         .where(Star.id == star_id)
@@ -315,12 +336,15 @@ async def get_star_with_movies(star_id: int, db: AsyncSession = Depends(get_db))
     star = result.scalar_one_or_none()
 
     if not star:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Star with given ID was not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Star with given ID was not found")
 
     return star
 
 
-@router.get("/directors/", response_model=list[DirectorResponse], status_code=status.HTTP_200_OK)
+@router.get("/directors/",
+            response_model=list[DirectorResponse],
+            status_code=status.HTTP_200_OK)
 async def get_director_list(db: AsyncSession = Depends(get_db)):
     stmt = select(Director).options(selectinload(Director.movies))
     result = await db.execute(stmt)
@@ -328,8 +352,7 @@ async def get_director_list(db: AsyncSession = Depends(get_db)):
     directors = result.scalars().all()
 
     if not directors:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No directors were found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="No directors were found")
 
     return directors
-
-

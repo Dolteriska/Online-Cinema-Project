@@ -2,26 +2,31 @@ from pydantic import BaseModel
 from decimal import Decimal
 from enum import Enum
 
-#BASE SCHEMAS
+# BASE SCHEMAS
+
 
 class GenreBase(BaseModel):
     name: str
 
+
 class StarBase(BaseModel):
     name: str
+
 
 class DirectorBase(BaseModel):
     name: str
 
+
 class CertificationBase(BaseModel):
     name: str
+
 
 class MovieBase(BaseModel):
     name: str
 
 
+# ENUM SCHEMAS FOR QUERY PARAMS AND SORTING
 
-#ENUM SCHEMAS FOR QUERY PARAMS AND SORTING
 
 class MovieSortBy(str, Enum):
     price_asc = "price_asc"
@@ -31,14 +36,12 @@ class MovieSortBy(str, Enum):
     popularity = "popularity"
 
 
-
-#RESPONSE SCHEMAS (GET)
+# RESPONSE SCHEMAS (GET)
 
 class GenreResponse(GenreBase):
     id: int
 
     model_config = {"from_attributes": True}
-
 
 
 class GenreWithMoviesResponse(GenreBase):
@@ -51,6 +54,7 @@ class GenreWithMoviesResponse(GenreBase):
 class GenreWithCountResponse(GenreBase):
     id: int
     movies_count: int
+
 
 class StarResponse(StarBase):
     id: int
@@ -69,10 +73,12 @@ class CertificationResponse(CertificationBase):
 
     model_config = {"from_attributes": True}
 
+
 class MovieShortResponseSchema(BaseModel):
     id: int
     name: str
     year: int
+
 
 class StarWithMoviesResponse(BaseModel):
     id: int
@@ -82,6 +88,7 @@ class StarWithMoviesResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
 
 class MovieResponseSchema(BaseModel):
     id: int
@@ -93,6 +100,7 @@ class MovieResponseSchema(BaseModel):
     genres: list[GenreResponse]
 
     model_config = {"from_attributes": True}
+
 
 class MovieDetailResponseSchema(BaseModel):
     id: int
@@ -144,4 +152,3 @@ class MovieShortResponseOrderSchema(BaseModel):
     price: Decimal
 
     model_config = {"from_attributes": True}
-

@@ -44,10 +44,12 @@ if TYPE_CHECKING:
     from src.database.models.orders import Order
     from src.database.models.payment import Payment
 
+
 class UserGroupEnum(str, enum.Enum):
     USER = "USER"
     MODERATOR = "MODERATOR"
     ADMIN = "ADMIN"
+
 
 class GenderEnum(str, enum.Enum):
     MAN = "man"
@@ -148,7 +150,7 @@ class UserModel(Base):
     cart: Mapped[Optional["Cart"]] = relationship(
         "Cart",
         back_populates="user",
-        cascade = "all, delete-orphan"
+        cascade="all, delete-orphan"
     )
 
     orders: Mapped[List["Order"]] = relationship(
@@ -161,18 +163,14 @@ class UserModel(Base):
         "Payment",
         back_populates="user")
 
-
-
-
-
     def __repr__(self):
         return f"<UserModel(id={self.id}, email={self.email}, is_active={self.is_active})>"
 
-    def has_group(self, group_name:UserGroupEnum) -> bool:
+    def has_group(self, group_name: UserGroupEnum) -> bool:
         return self.group.name == group_name
 
     @classmethod
-    def create(cls, email:str, raw_password: str, group_id: int | Mapped[int]) -> "UserModel":
+    def create(cls, email: str, raw_password: str, group_id: int | Mapped[int]) -> "UserModel":
         """
         custom method to create a new UserModel instance.
         Simplifies the creation of a new user by handling password hashing.
@@ -222,12 +220,12 @@ class UserProfileModel(Base):
         unique=True)
     user: Mapped[UserModel] = relationship("UserModel", back_populates="profile")
 
-
     def __repr__(self):
         return (
             f"<UserProfileModel(id={self.id}, first_name={self.first_name}, last_name={self.last_name}, "
             f"gender={self.gender}, date_of_birth={self.date_of_birth})>"
         )
+
 
 class TokenBaseModel(Base):
     __abstract__ = True
@@ -274,7 +272,6 @@ class RefreshTokenModel(TokenBaseModel):
     __tablename__ = "refresh_tokens"
 
     user: Mapped[UserModel] = relationship("UserModel", back_populates="refresh_tokens")
-
 
     @classmethod
     def create(cls, user_id: int | Mapped[int], days_valid: int, token: str) -> "RefreshTokenModel":

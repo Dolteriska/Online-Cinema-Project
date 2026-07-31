@@ -3,16 +3,17 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import asyncio
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, cast
 from celery import shared_task
-from sqlalchemy import delete, select
-
-
+from sqlalchemy import (delete,
+                        select,
+                        CursorResult)
 
 from src.config.settings import settings
-from src.database.session import AsyncSessionLocal, engine
+from src.database.session import AsyncSessionLocal
 from src.database.models.users import ActivationTokenModel, UserModel
-from src.database.models.movie_interactions import NotificationEnum, UserNotification
+from src.database.models.movie_interactions import (NotificationEnum,
+                                                    UserNotification)
 
 
 @shared_task(name="debug_task")
@@ -36,7 +37,7 @@ def run_async(coro):
     return loop.run_until_complete(coro)
 
 
-#HELPER FUNCTION FOR ALL EMAIL SENDING STUFF
+# HELPER FUNCTION FOR ALL EMAIL SENDING STUFF
 async def send_async_email(to_email: str, subject: str, html_content: str):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -54,7 +55,10 @@ async def send_async_email(to_email: str, subject: str, html_content: str):
     )
 
 # --- 1. PASSWORD RESET AND ACTIVATION ---
-async def _async_send_password_reset_email(email: str, password_reset_url: str):
+
+
+async def _async_send_password_reset_email(email: str,
+                                           password_reset_url: str):
     html = f"""
     <html>
         <body>
@@ -67,10 +71,13 @@ async def _async_send_password_reset_email(email: str, password_reset_url: str):
     return f"Email sent successfully to {email}"
 
 
-@shared_task(name="send_password_reset_email", bind=True, max_retries=3, default_retry_delay=60)
+@shared_task(name="send_password_reset_email",
+             bind=True, max_retries=3,
+             default_retry_delay=60)
 def send_password_reset_email(self, email: str, password_reset_url: str):
     try:
-        return run_async(_async_send_password_reset_email(email, password_reset_url))
+        return run_async(_async_send_password_reset_email(email,
+                                                          password_reset_url))
     except Exception as exc:
         raise self.retry(exc=exc)
 
@@ -79,7 +86,8 @@ async def _async_send_activation_email(email: str, activation_url: str):
     html = f"""
     <html>
         <body>
-            <p>Welcome! Please activate your account by clicking the link below:</p>
+            <p>Welcome! Please activate
+             your account by clicking the link below:</p>
             <a href="{activation_url}">Activate Account</a>
         </body>
     </html>
@@ -88,7 +96,9 @@ async def _async_send_activation_email(email: str, activation_url: str):
     return f"Email sent successfully to {email}"
 
 
-@shared_task(name="send_activation_email", bind=True, max_retries=3, default_retry_delay=60)
+@shared_task(name="send_activation_email",
+             bind=True, max_retries=3,
+             default_retry_delay=60)
 def send_activation_email(self, email: str, activation_url: str):
     try:
         return run_async(_async_send_activation_email(email, activation_url))
@@ -99,12 +109,14 @@ def send_activation_email(self, email: str, activation_url: str):
 # --- 2. TOKEN CLEANUP ---
 async def _async_cleanup_expired_tokens() -> str:
     now_utc = datetime.now(timezone.utc)
-    async with AsyncSessionLocal() as db:
+    async with (AsyncSessionLocal() as db):
         try:
-            stmt = delete(ActivationTokenModel).where(ActivationTokenModel.expires_at < now_utc)
-            result = await db.execute(stmt)
+            stmt = delete(ActivationTokenModel).where(
+                ActivationTokenModel.expires_at < now_utc)
+            result = cast(CursorResult, await db.execute(stmt))
             await db.commit()
-            return f"Successfully deleted {result.rowcount} expired activation tokens"
+            return (f"Successfully deleted "
+                    f"{result.rowcount} expired activation tokens")
         except Exception as e:
             await db.rollback()
             return f"Failed to auto-clean expired tokens. Error: {str(e)}"
@@ -125,7 +137,8 @@ async def _async_create_and_send_notification(
 ):
     async with AsyncSessionLocal() as session:
         try:
-            result = await session.execute(select(UserModel).where(UserModel.id == user_id))
+            result = await session.execute(select(UserModel)
+                                           .where(UserModel.id == user_id))
             user = result.scalar_one_or_none()
 
             if not user or not user.email:
@@ -146,7 +159,8 @@ async def _async_create_and_send_notification(
 
             if notification_type == NotificationEnum.COMMENT_REPLY.value:
                 subject = "New reply to your comment — Online Cinema"
-                html_content = f"<p>Your comment got a new reply:</p><p><b>{extra_text}</b></p>"
+                html_content = (f"<p>Your comment got"
+                                f" a new reply:</p><p><b>{extra_text}</b></p>")
 
             elif notification_type == NotificationEnum.COMMENT_LIKE.value:
                 subject = "Your comment received a like! — Online Cinema"
@@ -165,7 +179,9 @@ async def _async_create_and_send_notification(
             raise exc
 
 
-@shared_task(name="create_and_send_notification", bind=True, max_retries=3, default_retry_delay=60)
+@shared_task(name="create_and_send_notification",
+             bind=True, max_retries=3,
+             default_retry_delay=60)
 def create_and_send_notification(
     self,
     user_id: int,
@@ -177,7 +193,10 @@ def create_and_send_notification(
     try:
         return run_async(
             _async_create_and_send_notification(
-                user_id, notification_type, movie_comment_id, movie_id, extra_text
+                user_id, notification_type,
+                movie_comment_id,
+                movie_id,
+                extra_text
             )
         )
     except Exception as exc:
@@ -185,7 +204,8 @@ def create_and_send_notification(
 
 
 # --- 4. BATCHING RELEASE ---
-async def _async_notify_users_about_new_release(movie_id: int, movie_title: str):
+async def _async_notify_users_about_new_release(movie_id: int,
+                                                movie_title: str):
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(UserModel.id))
         user_ids = result.scalars().all()
@@ -195,19 +215,23 @@ async def _async_notify_users_about_new_release(movie_id: int, movie_title: str)
                 user_id=u_id,
                 notification_type=NotificationEnum.NEW_RELEASE.value,
                 movie_id=movie_id,
-                extra_text=f"Movie '{movie_title}' is already at our digital shelf's!"
+                extra_text=f"Movie '{movie_title}'"
+                           f" is already at our digital shelf's!"
             )
-        return f"Pushed release notifications for {len(user_ids)} users to Queue."
+        return (f"Pushed release"
+                f" notifications for {len(user_ids)} users to Queue.")
 
 
 @shared_task(name="notify_all_about_new_movie")
 def notify_users_about_new_release(movie_id: int, movie_title: str):
-    return run_async(_async_notify_users_about_new_release(movie_id, movie_title))
+    return run_async(_async_notify_users_about_new_release(movie_id,
+                                                           movie_title))
 
 
 # --- 5. PAYMENT CONFIRMATION SENDER ---
 
-async def _async_send_payment_confirmation_email(email: str, confirmation_url: str):
+async def _async_send_payment_confirmation_email(email: str,
+                                                 confirmation_url: str):
     html = f"""
     <html>
         <body>
@@ -219,9 +243,16 @@ async def _async_send_payment_confirmation_email(email: str, confirmation_url: s
     await send_async_email(email, "Payment confirmation - Online Cinema", html)
     return f"Email sent successfully to {email}"
 
-@shared_task(name="send_payment_confirmation_email", bind=True, max_retries=3, default_retry_delay=60)
-def send_payment_confirmation_email(self, email: str, confirmation_url: str):
+
+@shared_task(name="send_payment_confirmation_email",
+             bind=True, max_retries=3,
+             default_retry_delay=60)
+def send_payment_confirmation_email(self,
+                                    email: str,
+                                    confirmation_url: str):
     try:
-        return run_async(_async_send_payment_confirmation_email(email, confirmation_url))
+        return run_async(_async_send_payment_confirmation_email(
+            email, confirmation_url)
+        )
     except Exception as e:
         raise self.retry(e=e)

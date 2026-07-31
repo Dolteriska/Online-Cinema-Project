@@ -1,20 +1,19 @@
-from fastapi import APIRouter, Depends, status, HTTPException, Query, Request, Path
-from sqlalchemy import select, func, delete
-from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy import select, func
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 from typing import Optional, List
-from decimal import Decimal
 import asyncio
+
 from src.services.storage import storage_service
 from src.config.dependencies import get_current_user, require_profile
 from src.database.models import MovieComment, MovieCommentReaction
-from src.database.models.movie_interactions import (FavoriteMovie,
-                                                    ReactionEnum,
-                                                    MovieReaction,
-                                                    MovieRating, NotificationEnum)
-from src.database.models.users import UserModel, UserProfileModel, UserGroupEnum
+from src.database.models.movie_interactions import (ReactionEnum,
+                                                    NotificationEnum)
+from src.database.models.users import (UserModel,
+                                       UserProfileModel,
+                                       UserGroupEnum)
 from src.database.models.movies import Movie
 from src.database.session import get_db
 from src.schemas.admin_user_schema import MessageResponseSchema
@@ -24,16 +23,21 @@ from src.schemas.users_profile_schema import UserProfileShortResponse
 from src.tasks.tasks import create_and_send_notification
 router = APIRouter()
 
+
 async def resolve_avatar_url(avatar_key: Optional[str]) -> Optional[str]:
     if not avatar_key:
         return None
     return await asyncio.to_thread(storage_service.get_avatar_url, avatar_key)
 
-async def resolve_avatars_bulk(avatar_keys: set[str]) -> dict[str, Optional[str]]:
+
+async def resolve_avatars_bulk(avatar_keys: set[str])\
+        -> dict[str, Optional[str]]:
     urls = await asyncio.gather(*[
-        asyncio.to_thread(storage_service.get_avatar_url, key) for key in avatar_keys
+        asyncio.to_thread(storage_service.get_avatar_url,
+                          key) for key in avatar_keys
     ])
     return dict(zip(avatar_keys, urls))
+
 
 async def get_comment_response_dto(
     comment_id: int,
@@ -77,7 +81,13 @@ async def get_comment_response_dto(
         my_reaction_res = await db.execute(my_reaction_stmt)
         my_reaction = my_reaction_res.scalar_one_or_none()
 
-    avatar_url = await resolve_avatar_url(comment.user.profile.avatar)
+    profile = comment.user.profile
+
+    avatar_path = profile.avatar if profile else None
+    avatar_url = await resolve_avatar_url(avatar_path)
+
+    first_name = profile.first_name if profile and profile.first_name else "Anonymous"
+    last_name = profile.last_name if profile else None
 
     comment_dict = {
         "id": comment.id,
@@ -86,8 +96,8 @@ async def get_comment_response_dto(
         "is_deleted": comment.is_deleted,
         "user": UserProfileShortResponse(
             id=comment.user_id,
-            first_name=comment.user.profile.first_name,
-            last_name=comment.user.profile.last_name,
+            first_name=first_name,
+            last_name=last_name,
             avatar=avatar_url
         ),
         "likes_count": likes_count,
@@ -98,7 +108,9 @@ async def get_comment_response_dto(
 
     return CommentReadSchema.model_validate(comment_dict)
 
-@router.get("/movies/{movie_id}/comments/", response_model=List[CommentReadSchema])
+
+@router.get("/movies/{movie_id}/comments/",
+            response_model=List[CommentReadSchema])
 async def get_movie_comments_tree(
         movie_id: int,
         db: AsyncSession = Depends(get_db),
@@ -119,7 +131,8 @@ async def get_movie_comments_tree(
     if not all_comments:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="The movie with given ID has no comments yet or does not exist"
+            detail="The movie with given ID"
+                   " has no comments yet or does not exist"
         )
 
     comment_ids = [c.id for c in all_comments]
@@ -130,8 +143,8 @@ async def get_movie_comments_tree(
     reactions_result = await db.execute(reactions_stmt)
     all_reactions = reactions_result.scalars().all()
 
-    likes_map = {}
-    dislikes_map = {}
+    likes_map: dict[int, int] = {}
+    dislikes_map: dict[int, int] = {}
     my_reactions_map = {}
 
     current_user_id = current_user.id if current_user else None
@@ -150,7 +163,8 @@ async def get_movie_comments_tree(
     avatar_keys = {
         c.user.profile.avatar
         for c in all_comments
-        if not c.is_deleted and c.user and c.user.profile and c.user.profile.avatar
+        if not
+        c.is_deleted and c.user and c.user.profile and c.user.profile.avatar
     }
     avatar_urls_map = await resolve_avatars_bulk(avatar_keys)
 
@@ -162,10 +176,13 @@ async def get_movie_comments_tree(
 
         user_data = None
         if not is_deleted and comment.user and comment.user.profile:
+            profile = comment.user.profile
             avatar_key = comment.user.profile.avatar
+
+            first_name = profile.first_name if profile.first_name else "Anonymous"
             user_data = UserProfileShortResponse(
                 id=comment.user_id,
-                first_name=comment.user.profile.first_name,
+                first_name=first_name,
                 last_name=comment.user.profile.last_name,
                 avatar=avatar_urls_map.get(avatar_key) if avatar_key else None
             )
@@ -184,8 +201,10 @@ async def get_movie_comments_tree(
             "is_deleted": is_deleted,
             "user": user_data,
             "likes_count": 0 if is_deleted else likes_map.get(comment.id, 0),
-            "dislikes_count": 0 if is_deleted else dislikes_map.get(comment.id, 0),
-            "my_reaction": None if is_deleted else my_reactions_map.get(comment.id),
+            "dislikes_count": 0 if is_deleted
+            else dislikes_map.get(comment.id, 0),
+            "my_reaction": None if is_deleted
+            else my_reactions_map.get(comment.id),
             "replies": []
         }
 
@@ -206,7 +225,9 @@ async def get_movie_comments_tree(
     return root_comments
 
 
-@router.post("/movies/{movie_id}/comments/", response_model=CommentReadSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/movies/{movie_id}/comments/",
+             response_model=CommentReadSchema,
+             status_code=status.HTTP_201_CREATED)
 async def create_movie_comment(
         movie_id: int,
         comment_data: CommentCreateSchema,
@@ -240,7 +261,7 @@ async def create_movie_comment(
             detail="Something went wrong during comment creation"
         ) from e
 
-    stmt = (
+    comment_stmt = (
         select(MovieComment)
         .options(
             joinedload(MovieComment.user)
@@ -249,10 +270,13 @@ async def create_movie_comment(
         )
         .where(MovieComment.id == new_comment.id)
     )
-    result = await db.execute(stmt)
+    result = await db.execute(comment_stmt)
     return result.scalar_one()
 
-@router.post("/comments/{comment_id}/replies/", response_model=CommentReadSchema, status_code=status.HTTP_201_CREATED)
+
+@router.post("/comments/{comment_id}/replies/",
+             response_model=CommentReadSchema,
+             status_code=status.HTTP_201_CREATED)
 async def create_comment_reply(
     comment_id: int,
     reply_data: CommentCreateSchema,
@@ -306,17 +330,17 @@ async def create_comment_reply(
     return result.scalar_one()
 
 
-
-@router.post("/comments/{comment_id}/{reaction}/", response_model=CommentReadSchema)
+@router.post("/comments/{comment_id}/{reaction}/",
+             response_model=CommentReadSchema)
 async def toggle_comment_reaction(
         comment_id: int,
         reaction: ReactionEnum,
         db: AsyncSession = Depends(get_db),
         current_user: UserModel = Depends(require_profile)
 ):
-    stmt = select(MovieComment).where(MovieComment.id == comment_id)
-    result = await db.execute(stmt)
-    comment = result.scalar_one_or_none()
+    comment_stmt = select(MovieComment).where(MovieComment.id == comment_id)
+    comment_result = await db.execute(comment_stmt)
+    comment = comment_result.scalar_one_or_none()
 
     if not comment or comment.is_deleted:
         raise HTTPException(
@@ -330,8 +354,8 @@ async def toggle_comment_reaction(
         .where(MovieCommentReaction.comment_id == comment_id,
                MovieCommentReaction.user_id == current_user.id)
     )
-    result = await db.execute(existing_reaction_stmt)
-    existing_reaction = result.scalar_one_or_none()
+    reaction_result = await db.execute(existing_reaction_stmt)
+    existing_reaction = reaction_result.scalar_one_or_none()
 
     should_notify = False
 
@@ -361,7 +385,6 @@ async def toggle_comment_reaction(
             detail="Failed to update reaction"
         ) from e
 
-
     if should_notify and comment.user_id != current_user.id:
         first_name = await db.scalar(
             select(UserProfileModel.first_name)
@@ -379,7 +402,8 @@ async def toggle_comment_reaction(
     return await get_comment_response_dto(comment_id, db, current_user.id)
 
 
-@router.delete("/comments/{comment_id}/", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/comments/{comment_id}/",
+               status_code=status.HTTP_204_NO_CONTENT)
 async def delete_comment(
         comment_id: int,
         db: AsyncSession = Depends(get_db),
@@ -395,7 +419,8 @@ async def delete_comment(
             detail="Comment not found"
         )
 
-    is_admin = current_user.group and current_user.group.name == UserGroupEnum.ADMIN
+    is_admin = (current_user.group
+                and current_user.group.name == UserGroupEnum.ADMIN)
 
     is_author = comment.user_id == current_user.id
 
@@ -406,7 +431,8 @@ async def delete_comment(
         )
 
     if comment.is_deleted:
-        return MessageResponseSchema(message="Comment has been deleted already")
+        return MessageResponseSchema(message="Comment"
+                                             " has been deleted already")
 
     comment.is_deleted = True
     comment.text = "[Deleted comment]"

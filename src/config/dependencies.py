@@ -12,6 +12,7 @@ from src.security.interfaces import JWTAuthManagerInterface
 from src.security.token_manager import JWTAuthManager
 from src.database.models.users import UserGroupEnum
 
+
 def get_jwt_auth_manager() -> JWTAuthManagerInterface:
     """
     Create and return a JWT authentication manager instance.
@@ -33,11 +34,15 @@ def get_jwt_auth_manager() -> JWTAuthManagerInterface:
 
 bearer_scheme = HTTPBearer()
 
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
     db: AsyncSession = Depends(get_db),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> UserModel:
+    """
+    Gets current user that uses the website from header and returns UserModel
+    """
     token = credentials.credentials
 
     try:
@@ -87,6 +92,9 @@ def require_roles(*allowed_roles: UserGroupEnum):
     async def role_checker(
         current_user: UserModel = Depends(get_current_user),
     ) -> UserModel:
+        """
+        takes allowed_roles as an arguments and return HTTPException if the current user doesn't have enough rights
+        """
         if current_user.group is None or current_user.group.name not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -105,13 +113,14 @@ require_moderator = require_roles(
     UserGroupEnum.ADMIN,
 )
 
+
 async def require_profile(
     current_user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserModel:
     """
-    Проверяет существование профиля у пользователя перед выполнением действия.
-    Не делает тяжелый JOIN/SELECT всего профиля, а выполняет легкий EXISTS запрос.
+    Checks for the existence of a user profile before performing an action.
+    It does not execute a heavy JOIN or SELECT of the entire profile, but instead performs a lightweight EXISTS query.
     """
     stmt = select(exists().where(UserProfileModel.user_id == current_user.id))
     has_profile = await db.scalar(stmt)
@@ -123,4 +132,3 @@ async def require_profile(
         )
 
     return current_user
-

@@ -1,8 +1,7 @@
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
-from src.database.validators.users import validate_email, validate_password_strength
-from datetime import date, datetime
+from datetime import date
 from src.database.models.users import GenderEnum
 from enum import Enum
 
@@ -10,7 +9,6 @@ from enum import Enum
 class DeleteProfileQuestionEnum(str, Enum):
     yes = "YES"
     no = "NO"
-
 
 
 class UserProfileBase(BaseModel):

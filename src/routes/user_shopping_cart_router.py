@@ -1,37 +1,13 @@
-from typing import Optional
-
-from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
-from sqlalchemy import select, func, delete
+from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from decimal import Decimal
 
 from src.database.models import UserModel
-from src.database.models.movies import (Movie,
-                                        Certification,
-                                        Genre,
-                                        Star,
-                                        Director,
-                                        movie_genres,
-                                        movie_directors,
-                                        movie_stars)
-from src.schemas.movies_schema import (MovieResponseSchema,
-                                       MovieListResponseSchema,
-                                       GenreResponse,
-                                       StarResponse,
-                                       MovieShortResponseSchema,
-                                       StarWithMoviesResponse,
-                                       MovieDetailResponseSchema,
-                                       DirectorResponse,
-                                       GenreWithCountResponse,
-                                       GenreWithMoviesResponse,
-                                       MovieSortBy,
-                                       MovieInShoppingCartResponseSchema
-                                       )
-from src.database.models.movie_interactions import (MoviePurchase,
-                                                    FavoriteMovie
-                                                    )
+from src.database.models.movies import Movie
+from src.schemas.movies_schema import MovieInShoppingCartResponseSchema
+from src.database.models.movie_interactions import MoviePurchase
 from src.database.models.carts import Cart, CartItem
 from src.config.dependencies import get_current_user
 from src.database.session import get_db
@@ -49,6 +25,7 @@ async def get_or_create_cart(user_id: int, db: AsyncSession) -> Cart:
             .selectinload(CartItem.movie)
             .selectinload(Movie.genres)
         )
+        .execution_options(populate_existing=True)
     )
     result = await db.execute(stmt)
     cart = result.scalar_one_or_none()
@@ -62,6 +39,7 @@ async def get_or_create_cart(user_id: int, db: AsyncSession) -> Cart:
 
     return cart
 
+
 @router.get("/items/", response_model=CartResponseSchema)
 async def get_user_cart(
         current_user: UserModel = Depends(get_current_user),
@@ -74,11 +52,12 @@ async def get_user_cart(
         for item in reversed(cart.cart_items)
     ]
 
-
     return CartResponseSchema(movies=movie_list)
 
 
-@router.post("/items/", response_model=MessageResponseSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/items/",
+             response_model=MessageResponseSchema,
+             status_code=status.HTTP_201_CREATED)
 async def add_movie_to_cart(
         movie_id: int,
         current_user: UserModel = Depends(get_current_user),
@@ -139,8 +118,6 @@ async def add_movie_to_cart(
     return MessageResponseSchema(message="Movie added to cart successfully")
 
 
-
-
 @router.delete("/items/", response_model=MessageResponseSchema)
 async def delete_movie_from_cart(
         movie_id: int,
@@ -172,7 +149,9 @@ async def delete_movie_from_cart(
             detail="Something went wrong. Please try again later"
         ) from e
 
-    return MessageResponseSchema(message="Movie was successfully removed from your cart")
+    return MessageResponseSchema(message="Movie was successfully"
+                                         " removed from your cart")
+
 
 @router.delete("/items/clear/", response_model=MessageResponseSchema)
 async def clear_cart(
@@ -192,4 +171,5 @@ async def clear_cart(
             detail="Something went wrong. Please try again later"
         ) from e
 
-    return MessageResponseSchema(message="You have successfully cleared you shopping cart")
+    return MessageResponseSchema(message="You have successfully"
+                                         " cleared you shopping cart")

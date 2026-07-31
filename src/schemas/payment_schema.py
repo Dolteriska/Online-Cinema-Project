@@ -6,6 +6,7 @@ from decimal import Decimal
 from src.database.models.payment import PaymentStatusEnum
 from src.schemas.movies_schema import MovieInShoppingCartResponseSchema
 
+
 class OrderItemInPaymentSchema(BaseModel):
     movie: MovieInShoppingCartResponseSchema
 
@@ -42,4 +43,3 @@ class PaymentListResponseSchema(BaseModel):
     offset: int
     next: str | None = None
     previous: str | None = None
-

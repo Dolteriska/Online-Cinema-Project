@@ -1,9 +1,9 @@
 import enum
-from typing import List, Optional, TYPE_CHECKING
+from typing import (List,
+                    Optional,
+                    TYPE_CHECKING)
 from sqlalchemy import (
     ForeignKey,
-    String,
-    Float,
     Integer,
     Enum,
     DateTime,
@@ -24,10 +24,12 @@ if TYPE_CHECKING:
     from src.database.models.payment import (Payment,
                                              PaymentItem)
 
+
 class StatusEnum(str, enum.Enum):
     PENDING = "pending"
     PAID = "paid"
     CANCELED = "canceled"
+
 
 class Order(Base):
     __tablename__ = "orders"
@@ -53,7 +55,6 @@ class Order(Base):
     )
     total_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
 
-
     items: Mapped[List["OrderItem"]] = relationship(
         "OrderItem",
         back_populates="order",
@@ -70,13 +71,10 @@ class Order(Base):
         back_populates="order")
 
 
-
-
 class OrderItem(Base):
     __tablename__ = "order_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
 
     order_id: Mapped[int] = mapped_column(
         ForeignKey("orders.id", ondelete="CASCADE"),

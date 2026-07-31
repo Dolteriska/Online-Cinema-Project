@@ -9,4 +9,3 @@ class AdminUserProfileListResponseSchema(BaseModel):
     offset: int
     next: str | None
     previous: str | None
-

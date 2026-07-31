@@ -1,40 +1,24 @@
 from os import environ
-from typing import Optional
-from datetime import datetime
 import stripe
 from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
-from sqlalchemy import select, func, delete
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from decimal import Decimal, ROUND_HALF_UP
 from dotenv import load_dotenv
+
+
 from src.config.settings import settings
 from src.database.models import UserModel, Movie
 from src.stripe.stripe_service import StripeService
 from src.database.models.orders import OrderItem, Order, StatusEnum
 from src.database.models.payment import Payment, PaymentStatusEnum, PaymentItem
-from src.schemas.movies_schema import (MovieResponseSchema,
-                                       MovieListResponseSchema,
-                                       GenreResponse,
-                                       StarResponse,
-                                       MovieShortResponseSchema,
-                                       StarWithMoviesResponse,
-                                       MovieDetailResponseSchema,
-                                       DirectorResponse,
-                                       GenreWithCountResponse,
-                                       GenreWithMoviesResponse,
-                                       MovieSortBy,
-                                       MovieInShoppingCartResponseSchema
-                                       )
-from src.database.models.movie_interactions import (MoviePurchase,
-                                                    FavoriteMovie
-                                                    )
-from src.database.models.carts import Cart, CartItem
-from src.config.dependencies import get_current_user, require_admin
+from src.database.models.movie_interactions import MoviePurchase
+from src.config.dependencies import get_current_user
 from src.database.session import get_db
 from src.tasks.tasks import send_payment_confirmation_email
-from src.schemas.payment_schema import PaymentListResponseSchema, PaymentResponseSchema
+from src.schemas.payment_schema import (PaymentListResponseSchema,
+                                        PaymentResponseSchema)
 
 
 load_dotenv()
@@ -43,7 +27,6 @@ STRIPE_WEBHOOK_SECRET = environ.get("STRIPE_WEBHOOK_SECRET")
 
 
 router = APIRouter()
-
 
 
 @router.post("/checkout/{order_id}/")
@@ -83,14 +66,16 @@ async def create_checkout(
     if already_purchased_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"You already own one or more movies in this order (IDs: {already_purchased_ids})"
+            detail=f"You already own one or more movies in this order"
+                   f" (IDs: {already_purchased_ids})"
         )
 
     calculated_total = sum(
         (item.price_at_order for item in order.items),
         Decimal("0.00")
     )
-    calculated_total = calculated_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    calculated_total = calculated_total.quantize(Decimal("0.01"),
+                                                 rounding=ROUND_HALF_UP)
 
     if calculated_total <= 0:
         raise HTTPException(
@@ -105,7 +90,9 @@ async def create_checkout(
     base_url = getattr(settings, "BASE_URL", "http://127.0.0.1:8000")
     api_prefix = getattr(settings, "API_V1_STR", "/api/v1")
 
-    success_url = f"{base_url}{api_prefix}/payments/success?session_id={{CHECKOUT_SESSION_ID}}"
+    success_url = (f"{base_url}"
+                   f"{api_prefix}"
+                   f"/payments/success?session_id={{CHECKOUT_SESSION_ID}}")
     cancel_url = f"{base_url}{api_prefix}/payments/cancel"
 
     try:
@@ -162,11 +149,11 @@ async def stripe_webhook(
                 order_id = metadata["order_id"]
             except (KeyError, TypeError):
                 order_id = None
-
-        try:
-            order_id = int(order_id)
-        except (TypeError, ValueError):
-            order_id = None
+        if order_id is not None:
+            try:
+                order_id = int(order_id)
+            except (TypeError, ValueError):
+                order_id = None
 
         stmt = (
             select(Order)
@@ -204,7 +191,8 @@ async def stripe_webhook(
                     MoviePurchase.user_id == order.user_id,
                     MoviePurchase.movie_id == item.movie_id
                 )
-                existing_purchase = (await db.execute(stmt_check)).scalar_one_or_none()
+                existing_purchase = ((await db.execute(stmt_check))
+                                     .scalar_one_or_none())
 
                 if not existing_purchase:
                     movie_purchase = MoviePurchase(
@@ -217,14 +205,13 @@ async def stripe_webhook(
             await db.commit()
 
             print(f"[DEBUG] Sending email to {order.user.email}")
-            send_payment_confirmation_email.delay(order.user.email,
-                                                  f"{settings.BASE_URL}{settings.API_V1_STR}/orders/")
+            send_payment_confirmation_email.delay(
+                order.user.email,
+                f"{settings.BASE_URL}{settings.API_V1_STR}/orders/")
             print("[DEBUG] Task queued")
 
-
-
-
-    elif event["type"] in ["payment_intent.payment_failed", "checkout.session.expired"]:
+    elif (event["type"]
+          in ["payment_intent.payment_failed", "checkout.session.expired"]):
         session = event["data"]["object"]
         metadata = getattr(session, "metadata", None)
         order_id = None
@@ -236,11 +223,11 @@ async def stripe_webhook(
             except (KeyError, TypeError):
                 order_id = None
 
-        try:
-            order_id = int(order_id)
-
-        except (TypeError, ValueError):
-            order_id = None
+        if order_id is not None:
+            try:
+                order_id = int(order_id)
+            except (TypeError, ValueError):
+                order_id = None
 
         if order_id:
             order_id = int(order_id)
@@ -307,18 +294,22 @@ async def get_payments(
     next_offset = offset + limit
     previous_offset = max(offset - limit, 0)
 
-    next_url = str(request.url.include_query_params(limit=limit, offset=next_offset)) if next_offset < total else None
-    previous_url = str(request.url.include_query_params(limit=limit, offset=previous_offset)) if offset > 0 else None
+    next_url = str(request.url.include_query_params(
+        limit=limit,
+        offset=next_offset)) if next_offset < total else None
+    previous_url = str(request.url.include_query_params(
+        limit=limit,
+        offset=previous_offset)) if offset > 0 else None
 
     return PaymentListResponseSchema(
-        items=[PaymentResponseSchema.model_validate(payment) for payment in payments],
+        items=[PaymentResponseSchema.model_validate(payment)
+               for payment in payments],
         total=total,
         limit=limit,
         offset=offset,
         next=next_url,
         previous=previous_url,
     )
-
 
 
 @router.get("/success")
@@ -374,7 +365,6 @@ async def payment_success(
             "message": "Payment not completed yet"}
 
 
-
 @router.get("/cancel")
 async def payment_cancel(
     session_id: str | None = Query(default=None),
@@ -402,7 +392,9 @@ async def payment_cancel(
 
             payment_intent = getattr(session, "payment_intent", None)
             if payment_intent is not None:
-                last_error = getattr(payment_intent, "last_payment_error", None)
+                last_error = getattr(payment_intent,
+                                     "last_payment_error",
+                                     None)
                 if last_error is not None:
                     decline_reason = getattr(last_error, "message", None)
 

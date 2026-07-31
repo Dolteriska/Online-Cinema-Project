@@ -32,12 +32,11 @@ class ReactionEnum(str, enum.Enum):
     LIKE = "LIKE"
     DISLIKE = "DISLIKE"
 
+
 class NotificationEnum(str, enum.Enum):
     COMMENT_REPLY = "COMMENT_REPLY"
     COMMENT_LIKE = "COMMENT_LIKE"
     NEW_RELEASE = "NEW_RELEASE"
-
-
 
 
 class FavoriteMovie(Base):
@@ -71,7 +70,6 @@ class FavoriteMovie(Base):
         "Movie",
         back_populates="favorite_by_users"
     )
-
 
 
 class MovieReaction(Base):
@@ -114,6 +112,7 @@ class MovieReaction(Base):
         "Movie",
         back_populates="reacted_by_users"
     )
+
 
 class MovieComment(Base):
     __tablename__ = "movie_comments"
@@ -307,6 +306,7 @@ class UserNotification(Base):
         "Movie",
         foreign_keys=[movie_id]
     )
+
 
 class MoviePurchase(Base):
     """Model for tracking user movie purchases"""

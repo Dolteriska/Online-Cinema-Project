@@ -50,6 +50,7 @@ movie_directors = Table(
     Column("director_id", ForeignKey("directors.id", ondelete="CASCADE"), primary_key=True)
 )
 
+
 class Genre(Base):
     __tablename__ = "genres"
 
@@ -212,12 +213,3 @@ class Movie(Base):
     def total_dislikes(self) -> int:
         """Number of dislikes"""
         return sum(1 for r in self.reacted_by_users if r.reaction.value == "DISLIKE")
-
-
-
-
-
-
-
-
-

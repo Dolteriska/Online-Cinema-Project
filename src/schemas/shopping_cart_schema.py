@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from src.schemas.movies_schema import MovieInShoppingCartResponseSchema
-from typing import List, Optional
+from typing import List
 
 
 class CartResponseSchema(BaseModel):

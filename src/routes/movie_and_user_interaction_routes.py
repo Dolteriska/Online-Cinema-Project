@@ -1,7 +1,14 @@
-from fastapi import APIRouter, Depends, status, HTTPException, Query, Request, Path
-from sqlalchemy import select, func, delete
-from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from fastapi import (APIRouter,
+                     Depends,
+                     status,
+                     HTTPException,
+                     Query,
+                     Request,
+                     Path)
+from sqlalchemy import (select,
+                        func)
+from sqlalchemy.exc import (IntegrityError,
+                            SQLAlchemyError)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import Optional
@@ -18,15 +25,17 @@ from src.database.models.movies import (Movie,
                                         movie_stars)
 from src.database.models.movie_interactions import MoviePurchase
 from src.database.session import get_db
-from src.schemas.movie_and_user_interaction_schema import FavoriteMovieListResponseSchema
+from src.schemas.movie_and_user_interaction_schema import FavoriteMovieListResponseSchema # noqa
 from src.schemas.users_schema import MessageResponseSchema
-from src.schemas.movies_schema import MovieResponseSchema, MovieSortBy
+from src.schemas.movies_schema import (MovieResponseSchema,
+                                       MovieSortBy)
 router = APIRouter()
 
 
-#FAVORITE
+# FAVORITE
 
-@router.get("/favorites/movies/", response_model=FavoriteMovieListResponseSchema)
+@router.get("/favorites/movies/",
+            response_model=FavoriteMovieListResponseSchema)
 async def get_favorite_movies(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -63,7 +72,8 @@ async def get_favorite_movies(
         base_stmt = base_stmt.filter(Movie.name.ilike(f"%{title}%"))
     if description:
         description = description.strip()
-        base_stmt = base_stmt.filter(Movie.description.ilike(f"%{description}%"))
+        base_stmt = base_stmt.filter(
+            Movie.description.ilike(f"%{description}%"))
     if min_year:
         base_stmt = base_stmt.filter(Movie.year >= min_year)
     if max_year:
@@ -77,7 +87,8 @@ async def get_favorite_movies(
     if max_price:
         base_stmt = base_stmt.filter(Movie.price <= max_price)
     if certification_id:
-        base_stmt = base_stmt.filter(Movie.certification_id == certification_id)
+        base_stmt = base_stmt.filter(
+            Movie.certification_id == certification_id)
 
     if genre_ids:
         base_stmt = (
@@ -98,14 +109,17 @@ async def get_favorite_movies(
             base_stmt.join(movie_directors)
             .filter(movie_directors.c.director_id.in_(director_ids))
             .group_by(Movie.id)
-            .having(func.count(movie_directors.c.director_id) == len(director_ids))
+            .having(func.count(
+                movie_directors.c.director_id) == len(director_ids))
         )
     total_stmt = select(func.count()).select_from(base_stmt.subquery())
     total_result = await db.execute(total_stmt)
     total = total_result.scalar_one_or_none() or 0
     if total == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Movies with such query parameters were not found or you didn't favorite any movie yet")
+                            detail="Movies with such query parameters "
+                                   "were not found or you didn't "
+                                   "favorite any movie yet")
     stmt = base_stmt.options(
         selectinload(Movie.certification),
         selectinload(Movie.genres),
@@ -115,13 +129,15 @@ async def get_favorite_movies(
 
     if sort == MovieSortBy.popularity:
         purchases_sub = (
-            select(MoviePurchase.movie_id, func.count(MoviePurchase.id).label("p_count"))
+            select(MoviePurchase.movie_id,
+                   func.count(MoviePurchase.id).label("p_count"))
             .group_by(MoviePurchase.movie_id)
             .subquery()
         )
 
         favorites_sub = (
-            select(FavoriteMovie.movie_id, func.count(FavoriteMovie.id).label("f_count"))
+            select(FavoriteMovie.movie_id,
+                   func.count(FavoriteMovie.id).label("f_count"))
             .group_by(FavoriteMovie.movie_id)
             .subquery()
         )
@@ -138,7 +154,9 @@ async def get_favorite_movies(
         )
 
         if genre_ids or star_ids or director_ids:
-            stmt = stmt.group_by(Movie.id, purchases_sub.c.p_count, favorites_sub.c.f_count)
+            stmt = stmt.group_by(
+                Movie.id,
+                purchases_sub.c.p_count, favorites_sub.c.f_count)
 
         stmt = stmt.order_by(popularity_score.desc())
 
@@ -159,9 +177,12 @@ async def get_favorite_movies(
     next_offset = offset + limit
     previous_offset = max(offset - limit, 0)
 
-    next_url = str(request.url.include_query_params(limit=limit, offset=next_offset)) if next_offset < total else None
-    previous_url = str(request.url.include_query_params(limit=limit, offset=previous_offset)) if offset > 0 else None
-
+    next_url = str(request.url.include_query_params(
+        limit=limit,
+        offset=next_offset)) if next_offset < total else None
+    previous_url = str(request.url.include_query_params(
+        limit=limit,
+        offset=previous_offset)) if offset > 0 else None
 
     return FavoriteMovieListResponseSchema(
         items=[MovieResponseSchema.model_validate(movie) for movie in movies],
@@ -173,8 +194,9 @@ async def get_favorite_movies(
     )
 
 
-
-@router.post("/movies/{movie_id}/favorite/", response_model=MessageResponseSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/movies/{movie_id}/favorite/",
+             response_model=MessageResponseSchema,
+             status_code=status.HTTP_201_CREATED)
 async def add_movie_to_favorites(
         movie_id: int,
         db: AsyncSession = Depends(get_db),
@@ -187,7 +209,8 @@ async def add_movie_to_favorites(
     if not movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Can't add movie to favorites since movie with such id does not exist"
+            detail="Can't add movie to favorites"
+                   " since movie with such id does not exist"
         )
     favorite_movie = FavoriteMovie(
         user_id=current_user.id,
@@ -208,10 +231,12 @@ async def add_movie_to_favorites(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Database integrity constraint violated"
         ) from e
-    return MessageResponseSchema(message="Movie added to favorites successfully")
+    return MessageResponseSchema(message="Movie "
+                                         "added to favorites successfully")
 
 
-@router.delete("/movies/{movie_id}/favorite/", response_model=MessageResponseSchema)
+@router.delete("/movies/{movie_id}/favorite/",
+               response_model=MessageResponseSchema)
 async def delete_movie_from_favorites(
     movie_id: int,
     db: AsyncSession = Depends(get_db),
@@ -240,13 +265,15 @@ async def delete_movie_from_favorites(
             detail="Something went wrong. Please try again later"
         ) from e
 
-    return MessageResponseSchema(message="Movie removed from favorites successfully")
+    return MessageResponseSchema(message="Movie removed"
+                                         " from favorites successfully")
 
 
-#LIKE AND DISLIKE
+# LIKE AND DISLIKE
 
 
-@router.post("/movies/{movie_id}/{reaction}/", response_model=MessageResponseSchema)
+@router.post("/movies/{movie_id}/{reaction}/",
+             response_model=MessageResponseSchema)
 async def add_movie_reaction(
         movie_id: int,
         reaction: ReactionEnum,
@@ -275,12 +302,13 @@ async def add_movie_reaction(
                 await db.delete(existing_reaction)
                 await db.commit()
                 return MessageResponseSchema(
-                    message=f"Reaction {reaction.value} removed from movie {movie.name}"
+                    message=f"Reaction {reaction.value}"
+                            f" removed from movie {movie.name}"
                 )
 
-
             existing_reaction.reaction = reaction
-            msg = f"Reaction changed to {reaction.value} for movie {movie.name}"
+            msg = (f"Reaction changed to"
+                   f" {reaction.value} for movie {movie.name}")
 
         else:
 
@@ -290,7 +318,8 @@ async def add_movie_reaction(
                 reaction=reaction
             )
             db.add(new_reaction)
-            msg = f"Reaction {reaction.value} successfully added to movie {movie.name}"
+            msg = (f"Reaction {reaction.value}"
+                   f" successfully added to movie {movie.name}")
 
         await db.commit()
         return MessageResponseSchema(message=msg)
@@ -303,17 +332,20 @@ async def add_movie_reaction(
         ) from e
 
 
-
-@router.post("/movies/{movie_id}/rate_movie/{user_rating}/", response_model=MessageResponseSchema)
+@router.post("/movies/{movie_id}/rate_movie/{user_rating}/",
+             response_model=MessageResponseSchema)
 async def rate_movie(
         movie_id: int,
-        user_rating: int = Path(..., ge=1, le=10, description="Rating of movie from 1 to 10"),
+        user_rating: int = Path(...,
+                                ge=1,
+                                le=10,
+                                description="Rating of movie from 1 to 10"),
         db: AsyncSession = Depends(get_db),
         current_user: UserModel = Depends(get_current_user)
 ):
-    stmt = select(Movie).where(Movie.id == movie_id)
-    result = await db.execute(stmt)
-    movie = result.scalar_one_or_none()
+    movie_stmt = select(Movie).where(Movie.id == movie_id)
+    movie_result = await db.execute(movie_stmt)
+    movie = movie_result.scalar_one_or_none()
 
     if not movie:
         raise HTTPException(
@@ -326,8 +358,8 @@ async def rate_movie(
             MovieRating.movie_id == movie.id,
             MovieRating.user_id == current_user.id
         )
-        result = await db.execute(existing_rating_stmt)
-        existing_rating = result.scalar_one_or_none()
+        rating_result = await db.execute(existing_rating_stmt)
+        existing_rating = rating_result.scalar_one_or_none()
 
         if existing_rating:
 
@@ -335,7 +367,8 @@ async def rate_movie(
                 await db.delete(existing_rating)
                 await db.commit()
                 return MessageResponseSchema(
-                    message=f"Rating {user_rating} removed from movie {movie.name}")
+                    message=f"Rating {user_rating} "
+                            f"removed from movie {movie.name}")
 
             existing_rating.rating = user_rating
             msg = f"Rating changed to {user_rating} for movie {movie.name}"
@@ -348,7 +381,8 @@ async def rate_movie(
                 rating=user_rating
             )
             db.add(new_rating)
-            msg = f"Rating {user_rating} successfully added to movie {movie.name}"
+            msg = (f"Rating {user_rating}"
+                   f" successfully added to movie {movie.name}")
 
         await db.commit()
         return MessageResponseSchema(message=msg)
@@ -359,11 +393,3 @@ async def rate_movie(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Something went wrong"
         ) from e
-
-
-
-
-
-
-
-

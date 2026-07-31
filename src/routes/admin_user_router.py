@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Depends, Query, Request, HTTPException, status
-from sqlalchemy import select, func
+from fastapi import (APIRouter,
+                     Depends,
+                     Query,
+                     Request,
+                     HTTPException,
+                     status)
+from sqlalchemy import (select,
+                        func)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-
-from src.config.dependencies import require_moderator, require_admin
-from src.database.models.users import UserModel, UserGroupModel
+from src.config.dependencies import require_admin
+from src.database.models.users import (UserModel,
+                                       UserGroupModel)
 from src.schemas.admin_user_schema import (AdminUserResponseSchema,
                                            AdminUserListResponseSchema,
                                            AdminUserGroupChangeSchema,
@@ -14,12 +20,10 @@ from src.database.session import get_db
 router = APIRouter()
 
 
-
-
 @router.get("/users/", response_model=AdminUserListResponseSchema)
 async def get_user_list(request: Request,
                         db: AsyncSession = Depends(get_db),
-                        current_admin: UserModel = Depends(require_admin), # noqa
+                        current_admin: UserModel = Depends(require_admin),
                         limit: int = Query(default=20, ge=1, le=100),
                         offset: int = Query(default=0, ge=0)
                         ):
@@ -74,10 +78,9 @@ async def get_user_list(request: Request,
     )
 
 
-
 @router.get("/users/{user_id}/", response_model=AdminUserResponseSchema)
 async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db),
-                         current_admin: UserModel = Depends(require_admin)): # noqa
+                         current_admin: UserModel = Depends(require_admin)):
     stmt = (
         select(UserModel)
         .options(joinedload(UserModel.group))
@@ -100,10 +103,15 @@ async def get_user_by_id(user_id: int, db: AsyncSession = Depends(get_db),
     )
 
 
-@router.patch("/users/{user_id}/activate/", response_model=MessageResponseSchema)
-async def force_activate_account(user_id: int, db: AsyncSession = Depends(get_db),
-                                 current_admin: UserModel = Depends(require_admin)):
-    stmt = select(UserModel).options(joinedload(UserModel.activation_token)).where(UserModel.id == user_id)
+@router.patch("/users/{user_id}/activate/",
+              response_model=MessageResponseSchema)
+async def force_activate_account(
+        user_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_admin: UserModel = Depends(require_admin)):
+    stmt = (select(UserModel).
+            options(joinedload(UserModel.activation_token)).
+            where(UserModel.id == user_id))
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     if not user:
@@ -117,7 +125,6 @@ async def force_activate_account(user_id: int, db: AsyncSession = Depends(get_db
             detail="User account is already active."
         )
 
-
     user.is_active = True
 
     if user.activation_token:
@@ -125,11 +132,12 @@ async def force_activate_account(user_id: int, db: AsyncSession = Depends(get_db
 
     await db.commit()
 
-    return MessageResponseSchema(message="User account activated successfully.")
+    return MessageResponseSchema(message="User account"
+                                         " activated successfully.")
 
 
-
-@router.patch("/users/{user_id}/change-group", response_model=MessageResponseSchema)
+@router.patch("/users/{user_id}/change-group",
+              response_model=MessageResponseSchema)
 async def change_user_group(new_role: AdminUserGroupChangeSchema,
                             user_id: int, db: AsyncSession = Depends(get_db),
                             current_user: UserModel = Depends(require_admin),
@@ -147,9 +155,11 @@ async def change_user_group(new_role: AdminUserGroupChangeSchema,
 
     if user.group.name == new_role.group.name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"This user is already {new_role.group.value}")
+                            detail=f"This user is already"
+                                   f" {new_role.group.value}")
 
-    group_stmt = select(UserGroupModel).where(UserGroupModel.name == new_role.group)
+    group_stmt = (select(UserGroupModel)
+                  .where(UserGroupModel.name == new_role.group))
     group_result = await db.execute(group_stmt)
     target_group = group_result.scalar_one_or_none()
 
@@ -160,6 +170,5 @@ async def change_user_group(new_role: AdminUserGroupChangeSchema,
     user.group = target_group
 
     await db.commit()
-    return MessageResponseSchema(message="User role has been changed successfully")
-
-
+    return MessageResponseSchema(message="User role "
+                                         "has been changed successfully")

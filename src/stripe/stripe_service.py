@@ -1,9 +1,8 @@
 import stripe
-from decimal import Decimal
-from typing import Optional
 from os import environ
 from dotenv import load_dotenv
-
+from typing import List
+from stripe.params.checkout import SessionCreateParamsLineItem
 
 load_dotenv()
 
@@ -17,13 +16,13 @@ class StripeService:
             order_items: list,
             success_url: str,
             cancel_url: str
-    ) -> str:
-        line_items = []
+    ) -> str | None:
+        line_items: List[SessionCreateParamsLineItem] = []
 
         for item in order_items:
             unit_amount = int(item.price_at_order * 100)
 
-            line_items.append({
+            line_item: SessionCreateParamsLineItem = {
                 "price_data": {
                     "currency": "eur",
                     "product_data": {
@@ -32,11 +31,12 @@ class StripeService:
                     "unit_amount": unit_amount,
                 },
                 "quantity": 1,
-            })
+            }
+            line_items.append(line_item)
 
         session = await stripe.checkout.Session.create_async(
             payment_method_types=["card"],
-            line_items=line_items, 
+            line_items=line_items,
             mode="payment",
             success_url=success_url,
             cancel_url=cancel_url,

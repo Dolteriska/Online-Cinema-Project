@@ -33,7 +33,9 @@ class S3StorageService:
         except ClientError:
             self._internal_client.create_bucket(Bucket=self.bucket)
 
-    def upload_avatar(self, file_bytes: bytes, user_id: int, content_type: str) -> str:
+    def upload_avatar(self, file_bytes: bytes,
+                      user_id: int,
+                      content_type: str) -> str:
         ext = content_type.split("/")[-1] or "jpg"
         key = f"avatars/{user_id}/{uuid.uuid4()}.{ext}"
         self._internal_client.put_object(

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, model_validator
 from src.database.models.movie_interactions import NotificationEnum
 
 
@@ -12,7 +12,9 @@ class UserNotificationCreateSchema(BaseModel):
     def validate_notification_consistency(self):
         """Check of a notification type"""
 
-        if self.notification_type in (NotificationEnum.COMMENT_REPLY, NotificationEnum.COMMENT_LIKE):
+        if (self.notification_type in
+                (NotificationEnum.COMMENT_REPLY,
+                 NotificationEnum.COMMENT_LIKE)):
             if self.movie_comment_id is None:
                 raise ValueError(
                     f"type '{self.notification_type}' needs movie_comment_id"

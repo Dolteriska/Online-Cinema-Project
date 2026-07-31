@@ -1,12 +1,16 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.exc import SQLAlchemyError
+from fastapi import (APIRouter,
+                     Depends,
+                     status,
+                     Query,
+                     Request)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+
 from src.database.session import get_db
-from src.config.dependencies import get_current_user, require_admin
+from src.config.dependencies import require_admin
 from src.database.models.users import UserProfileModel
-from src.schemas.users_profile_schema import UserProfileCreate, UserProfileResponse, UserProfileUpdateSchema
+from src.schemas.users_profile_schema import UserProfileResponse
 from src.schemas.admin_profile_schema import AdminUserProfileListResponseSchema
 from src.database.models.users import UserModel
 import asyncio
@@ -14,17 +18,21 @@ from src.services.storage import storage_service
 
 router = APIRouter()
 
-async def resolve_avatars_bulk(avatar_keys: set[str]) -> dict[str, Optional[str]]:
+
+async def resolve_avatars_bulk(avatar_keys: set[str])\
+        -> dict[str, Optional[str]]:
     if not avatar_keys:
         return {}
     urls = await asyncio.gather(*[
-        asyncio.to_thread(storage_service.get_avatar_url, key) for key in avatar_keys
+        asyncio.to_thread(storage_service.get_avatar_url,
+                          key) for key in avatar_keys
     ])
     return dict(zip(avatar_keys, urls))
 
 
-
-@router.get("/all/", response_model=AdminUserProfileListResponseSchema, status_code=status.HTTP_200_OK)
+@router.get("/all/",
+            response_model=AdminUserProfileListResponseSchema,
+            status_code=status.HTTP_200_OK)
 async def get_all_profiles(
         request: Request,
         current_admin: UserModel = Depends(require_admin),
@@ -61,7 +69,8 @@ async def get_all_profiles(
     for profile in profiles:
         profile_dict = dict(profile)
         if profile_dict["avatar"]:
-            profile_dict["avatar"] = avatar_urls_map.get(profile_dict["avatar"])
+            profile_dict["avatar"] =\
+                avatar_urls_map.get(profile_dict["avatar"])
         items.append(UserProfileResponse.model_validate(profile_dict))
 
     next_offset = offset + limit
@@ -92,6 +101,3 @@ async def get_all_profiles(
         next=next_url,
         previous=previous_url,
     )
-
-
-

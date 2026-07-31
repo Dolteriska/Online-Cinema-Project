@@ -4,28 +4,29 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", extra="ignore")
 
-    #Postres
+    # POSTGRES
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
 
-    #JWT
+    # JWT
     SECRET_KEY_ACCESS: str
     SECRET_KEY_REFRESH: str
     JWT_SIGNING_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    #Redis
+    # REDIS
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
 
-    #SMTP (Mailhog)
+    # SMTP (Mailhog)
     SMTP_HOST: str = "127.0.0.1"
     SMTP_PORT: int = 1025
     SMTP_USER: str = "mock_user"
@@ -33,19 +34,18 @@ class Settings(BaseSettings):
 
     BASE_URL: str = "http://127.0.0.1:8000"
 
-    #Login
+    # LOGIN
     LOGIN_TIME_DAYS: int = 7
 
-    #API VERSION
+    # API VERSION
     API_V1_STR: str = "/api/v1"
 
-    #MINIO
+    # MINIO
     MINIO_ENDPOINT_INTERNAL: str
     MINIO_ENDPOINT_PUBLIC: str
     MINIO_ACCESS_KEY: str
     MINIO_SECRET_KEY: str
     MINIO_BUCKET_NAME: str
-
 
     @property
     def REDIS_URL(self) -> str:
@@ -57,7 +57,6 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
-
 
 
 settings = Settings()

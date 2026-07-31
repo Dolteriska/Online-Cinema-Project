@@ -2,13 +2,13 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 
-from src.database.models import UserModel
 from src.schemas.users_profile_schema import UserProfileShortResponse
 from src.database.models.movie_interactions import ReactionEnum
 
 
 class CommentCreateSchema(BaseModel):
     text: str
+
 
 class BaseCommentSchema(BaseModel):
     id: int
@@ -33,5 +33,6 @@ class CommentReadSchema(BaseCommentSchema):
     my_reaction: Optional[ReactionEnum] = None
 
     replies: List["CommentReadSchema"] = Field(default_factory=list)
+
 
 CommentReadSchema.model_rebuild()
