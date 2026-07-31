@@ -239,7 +239,7 @@ async def get_movie_list(request: Request,
 
 @router.get("/movies/{movie_id}/", response_model=MovieDetailResponseSchema)
 @limiter.limit("100/minute")
-async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_db)):
+async def get_movie_by_id(request: Request, movie_id: int, db: AsyncSession = Depends(get_db)):
     stmt = (
         select(Movie).where(Movie.id == movie_id)
         .options(
@@ -267,7 +267,7 @@ async def get_movie_by_id(movie_id: int, db: AsyncSession = Depends(get_db)):
             response_model=list[GenreWithCountResponse],
             status_code=status.HTTP_200_OK)
 @limiter.limit("100/minute")
-async def get_genre_list(db: AsyncSession = Depends(get_db)):
+async def get_genre_list(request: Request, db: AsyncSession = Depends(get_db)):
     stmt = (
         select(Genre.id,
                Genre.name,
@@ -294,7 +294,7 @@ async def get_genre_list(db: AsyncSession = Depends(get_db)):
             response_model=GenreWithMoviesResponse,
             status_code=status.HTTP_200_OK)
 @limiter.limit("100/minute")
-async def get_genre_detail(genre_id: int, db: AsyncSession = Depends(get_db)):
+async def get_genre_detail(request: Request, genre_id: int, db: AsyncSession = Depends(get_db)):
     stmt = (
         select(Genre)
         .where(Genre.id == genre_id)
@@ -315,7 +315,7 @@ async def get_genre_detail(genre_id: int, db: AsyncSession = Depends(get_db)):
             response_model=list[StarResponse],
             status_code=status.HTTP_200_OK)
 @limiter.limit("100/minute")
-async def get_star_list(db: AsyncSession = Depends(get_db)):
+async def get_star_list(request: Request, db: AsyncSession = Depends(get_db)):
     stmt = select(Star).options(selectinload(Star.movies))
     result = await db.execute(stmt)
 
@@ -332,7 +332,7 @@ async def get_star_list(db: AsyncSession = Depends(get_db)):
             response_model=StarWithMoviesResponse,
             status_code=status.HTTP_200_OK)
 @limiter.limit("100/minute")
-async def get_star_with_movies(star_id: int,
+async def get_star_with_movies(request: Request, star_id: int,
                                db: AsyncSession = Depends(get_db)):
     stmt = (
         select(Star)
@@ -353,7 +353,7 @@ async def get_star_with_movies(star_id: int,
             response_model=list[DirectorResponse],
             status_code=status.HTTP_200_OK)
 @limiter.limit("100/minute")
-async def get_director_list(db: AsyncSession = Depends(get_db)):
+async def get_director_list(request: Request, db: AsyncSession = Depends(get_db)):
     stmt = select(Director).options(selectinload(Director.movies))
     result = await db.execute(stmt)
 

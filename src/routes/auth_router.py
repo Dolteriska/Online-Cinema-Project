@@ -1,14 +1,19 @@
 from datetime import datetime, timezone
 from fastapi import Query
 from typing import cast
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import (APIRouter,
+                     Depends,
+                     status,
+                     HTTPException,
+                     Request)
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from src.config.settings import settings
-from src.config.dependencies import get_jwt_auth_manager, get_current_user
+from src.config.dependencies import (get_jwt_auth_manager,
+                                     get_current_user)
 from src.database.models.users import (UserModel,
                                        UserGroupModel,
                                        UserGroupEnum,
@@ -40,7 +45,8 @@ router = APIRouter()
 @router.post("/register/",
              response_model=UserRegistrationResponseSchema)
 @limiter.limit("100/minute")
-async def register_user(user_data: UserRegistrationRequestSchema,
+async def register_user(request: Request,
+                        user_data: UserRegistrationRequestSchema,
                         db: AsyncSession = Depends(get_db)):
     stmt = select(UserModel).where(UserModel.email == user_data.email)
     result = await db.execute(stmt)
@@ -94,7 +100,8 @@ async def register_user(user_data: UserRegistrationRequestSchema,
 @router.post("/activate/",
              response_model=MessageResponseSchema)
 @limiter.limit("100/minute")
-async def activate_account(activation_data: UserActivationRequestSchema,
+async def activate_account(request: Request,
+                           activation_data: UserActivationRequestSchema,
                            db: AsyncSession = Depends(get_db)):
     stmt = (
         select(ActivationTokenModel)
@@ -136,6 +143,7 @@ async def activate_account(activation_data: UserActivationRequestSchema,
 @router.get("/activate/", response_model=MessageResponseSchema)
 @limiter.limit("100/minute")
 async def activate_account_via_link(
+        request: Request,
         token: str = Query(...),
         db: AsyncSession = Depends(get_db)
 ):
@@ -177,6 +185,7 @@ async def activate_account_via_link(
 @router.post("/refresh/", response_model=TokenRefreshResponseSchema)
 @limiter.limit("100/minute")
 async def refresh_access_token(
+        request: Request,
         token_data: TokenRefreshRequestSchema,
         db: AsyncSession = Depends(get_db),
         jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
@@ -220,6 +229,7 @@ async def refresh_access_token(
 @router.post("/login/", response_model=UserLoginResponseSchema)
 @limiter.limit("100/minute")
 async def login_user(
+    request: Request,
     login_data: UserLoginRequestSchema,
     db: AsyncSession = Depends(get_db),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
@@ -266,7 +276,8 @@ async def login_user(
 
 @router.post("/logout/", status_code=status.HTTP_200_OK)
 @limiter.limit("100/minute")
-async def logout(body: LogoutRequestSchema,
+async def logout(request: Request,
+                 body: LogoutRequestSchema,
                  db: AsyncSession = Depends(get_db)
                  ):
     stmt = (select(RefreshTokenModel).where
@@ -293,7 +304,8 @@ async def logout(body: LogoutRequestSchema,
 
 @router.post("/resend-activation/", response_model=MessageResponseSchema)
 @limiter.limit("100/minute")
-async def resend_activation_link(user_data: ResendActivationRequestSchema,
+async def resend_activation_link(request: Request,
+                                 user_data: ResendActivationRequestSchema,
                                  db: AsyncSession = Depends(get_db)):
     stmt = (select(UserModel)
             .options(joinedload(UserModel.activation_token))
@@ -344,7 +356,8 @@ async def resend_activation_link(user_data: ResendActivationRequestSchema,
 
 @router.post("/password-reset/request/", response_model=MessageResponseSchema)
 @limiter.limit("100/minute")
-async def password_reset(user_data: PasswordResetRequestSchema,
+async def password_reset(request: Request,
+                         user_data: PasswordResetRequestSchema,
                          db: AsyncSession = Depends(get_db)
                          ):
     stmt = (select(UserModel)
@@ -383,7 +396,8 @@ async def password_reset(user_data: PasswordResetRequestSchema,
 
 @router.post("/password-reset/confirm/", response_model=MessageResponseSchema)
 @limiter.limit("100/minute")
-async def password_reset_confirm(user_data: PasswordResetConfirmRequestSchema,
+async def password_reset_confirm(request: Request,
+                                 user_data: PasswordResetConfirmRequestSchema,
                                  db: AsyncSession = Depends(get_db)):
     stmt = (
         select(PasswordResetTokenModel)
