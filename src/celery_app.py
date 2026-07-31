@@ -19,7 +19,7 @@ celery_app.conf.update(
 celery_app.conf.beat_schedule = {
     "clear-tokens-for-test": {
         "task": "cleanup_expired_tokens_task",
-        "schedule": timedelta(minutes=1),
+        "schedule": timedelta(days=1),
     },
 }
 
