@@ -1,4 +1,5 @@
 services:
+
   db:
     image: postgres:16
     container_name: cinema_postgres
@@ -16,6 +17,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  migrations:
+    build: .
+    command: alembic upgrade head
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
 
   redis:
     image: redis:7-alpine
@@ -68,6 +77,8 @@ services:
         condition: service_started
       mailhog:
         condition: service_started
+      migrations:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -88,6 +99,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      migrations:
+        condition: service_completed_successfully
 
   celery_beat:
     build: .
@@ -101,6 +114,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:
